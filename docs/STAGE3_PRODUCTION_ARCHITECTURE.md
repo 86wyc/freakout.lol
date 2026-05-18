@@ -175,6 +175,26 @@ Every request should resolve:
 
 The application should never query by a bare record ID alone. Every read and write should be scoped by `firmId`, and deal-restricted objects should also be scoped by `dealId`.
 
+### Authorization implementation contract
+
+To make the access model real rather than aspirational, I would define an explicit runtime contract for how authorization context reaches the database.
+
+- every request creates a `RequestContext` carrying:
+  - `userId`
+  - `firmId`
+  - allowed `dealIds`
+  - role set
+  - request ID
+- every database read/write flows through a small shared access layer rather than ad hoc Prisma calls in handlers
+- every tenant-critical query executes inside a transaction that sets session-local database context such as:
+  - `app.current_user_id`
+  - `app.current_firm_id`
+  - `app.allowed_deal_ids`
+- RLS policies read from those session settings, so application scoping and database scoping agree on the same context
+- background workers establish an explicit system actor plus tenant/deal scope for each job instead of bypassing policy with unrestricted database access
+
+Concretely, I would treat direct unscoped ORM access as a production bug. The goal is not just “remember to filter by `firmId`,” but “make the safe path the default path.”
+
 ### Database enforcement
 
 I would use two layers:
@@ -237,6 +257,18 @@ Each import should be:
 - schema-versioned
 - attributable to a specific pipeline run
 
+### Imported intelligence vs analyst-authored state
+
+The app should treat imported intelligence and analyst judgment as different layers with different mutation rules.
+
+- `KnowledgeSnapshot` is immutable and represents what the upstream pipeline produced at a point in time
+- `Position` and `PositionRevision` are analyst-facing opinion objects owned by the application
+- positions should reference the snapshot, findings, claims, or passages they were derived from, but imported re-runs must not silently rewrite analyst-authored position history
+- when a newer snapshot supersedes evidence, linked positions can be marked as `STALE`, `NEEDS_REVIEW`, or similar, but the original analyst judgment remains preserved
+- system-suggested positions should be stored separately from analyst-confirmed positions so the UI can clearly distinguish machine proposal from human conclusion
+
+This matters because analysts are not reviewing “the latest pipeline output” in the abstract. They are reviewing a specific evidence state and forming judgments that must remain auditable across reprocessing runs.
+
 ### Delivery mechanism
 
 I would support either of these:
@@ -254,6 +286,8 @@ Imported snapshots solve several production problems:
 - re-runs do not mutate history invisibly
 - bugs in the pipeline can be rolled back by marking a snapshot superseded
 - external assistants can cite stable evidence identifiers
+
+Another useful way to frame this is `Knowledge-Snapshot as Graph State`. In that model, each snapshot is not just a bag of extracted rows but an immutable, versioned graph of entities, claims, findings, contradictions, passages, and their provenance links at a specific point in time. The application can then let analyst-authored positions reference that graph state explicitly, compare one graph state to another across reprocessing runs, and mark downstream judgments stale without losing the original evidence context they were based on.
 
 ## MCP and External Integrations
 
@@ -437,8 +471,10 @@ Those may become necessary later, but they are not where I would spend pre-seed 
 
 - introduce `Firm`, `FirmMembership`, and deal-level permissions
 - add `firmId` to tenant-critical tables
+- establish a shared authorization/query layer so tenant scoping is the default path for every read and write
 - enforce RLS
 - move documents to private tenant-scoped object storage
+- add integration tests that prove cross-tenant reads are rejected at both service and database layers
 - add audit logs, Sentry, rate limiting, backups, and CI/CD
 
 ### Phase 2: pipeline hardening
