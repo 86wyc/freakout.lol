@@ -289,6 +289,25 @@ Imported snapshots solve several production problems:
 
 Another useful way to frame this is `Knowledge-Snapshot as Graph State`. In that model, each snapshot is not just a bag of extracted rows but an immutable, versioned graph of entities, claims, findings, contradictions, passages, and their provenance links at a specific point in time. The application can then let analyst-authored positions reference that graph state explicitly, compare one graph state to another across reprocessing runs, and mark downstream judgments stale without losing the original evidence context they were based on.
 
+### Knowledge Snapshot as Graph State
+
+A `KnowledgeSnapshot` should represent the graph state for a deal at a point in time, not just a bundle of extracted findings.
+
+Each snapshot should include:
+
+- ontology version
+- extraction pipeline version
+- entity IDs
+- relationships
+- claims
+- supporting evidence
+- contradictions
+- unresolved gaps
+- confidence scores
+- superseded/changed graph elements from previous snapshots
+
+This allows the platform to compare the current graph against previous snapshots and surface what has changed, what is stale, and what is contradicted by new evidence.
+
 ## MCP and External Integrations
 
 The MCP server should not be a thin passthrough to internal tables. It should be a read-optimized, policy-aware integration surface.
