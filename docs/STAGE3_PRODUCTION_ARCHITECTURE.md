@@ -36,6 +36,7 @@ For production, I would keep those foundations, but I would change the trust bou
 - separate document ingestion from structured-intelligence import
 - add a read-only integration surface for MCP and external assistants
 - enforce tenant isolation in both application code and the database
+- add subscription billing, usage metering, and entitlement checks at the firm boundary
 - introduce audit logging, observability, and operational controls expected by PE firms
 
 ## Proposed High-Level Architecture
@@ -48,6 +49,8 @@ flowchart LR
   UI["Next.js Web App"]
   API["App API / BFF"]
   Auth["Auth + RBAC"]
+  Billing["Billing + Entitlements"]
+  Payments["Payment Provider"]
   DB["Postgres"]
   Blob["Private Object Storage"]
   Queue["Queue / Workflow Engine"]
@@ -61,11 +64,15 @@ flowchart LR
   Admin --> UI
   UI --> API
   API --> Auth
+  API --> Billing
   API --> DB
   API --> Blob
   API --> Queue
   API --> Graphs
   API --> MCP
+  Billing --> DB
+  Billing --> Payments
+  Payments --> Billing
 
   Queue --> Importer
   Importer --> DB
@@ -79,6 +86,7 @@ flowchart LR
   MCP --> Blob
 
   API --> Obs
+  Billing --> Obs
   Importer --> Obs
   MCP --> Obs
 ```
@@ -96,7 +104,7 @@ Add these top-level entities:
   - billing, plan, region, data-retention policy
 - `FirmMembership`
   - user-to-firm relationship
-  - role such as `ADMIN`, `PARTNER`, `ANALYST`, `VIEWER`
+  - role such as `OWNER`, `ADMIN`, `PARTNER`, `ANALYST`, `REVIEWER`, `VIEWER`
 - `Deal`
   - scoped to a single firm
   - effectively the production successor to `Project`
@@ -105,6 +113,27 @@ Add these top-level entities:
   - supports private or ring-fenced deals inside a firm
 
 In practice, I would likely keep the current `Project` table initially and add `firmId` plus membership tables rather than doing an immediate rename to `Deal`. That keeps migration risk low while moving the model in the right direction.
+
+### Billing and entitlement model
+
+Payments should attach to the firm, not to individual projects. The firm is the customer boundary, the permission boundary, and the billing boundary.
+
+I would add:
+
+- `BillingCustomer`
+  - maps a `Firm` to the payment provider customer ID
+  - stores billing email, billing admin, tax region, and invoice settings
+- `Subscription`
+  - plan, status, billing period, renewal date, cancellation state
+  - mirrors payment provider state but does not replace webhook verification
+- `PlanEntitlement`
+  - limits for seats, active deals/workflows, document volume, graph templates, exports, and assistant runs
+- `UsageMeter`
+  - monthly usage counters for documents processed, pages/chunks indexed, graph runs, exports, and LLM cost
+- `InvoiceEvent`
+  - immutable audit record of payment provider webhooks and billing-state transitions
+
+The product should gate capabilities with entitlements before expensive work starts. For example, document upload, graph processing, exports, and inviting additional members should all check the firm plan. Billing failures should degrade gracefully: preserve read access and audit history, but pause new processing once a firm moves past a defined grace period.
 
 ### Source and ingestion model
 
@@ -193,8 +222,32 @@ Every request should resolve:
 - active firm context
 - allowed deal set within that firm
 - role and permissions
+- firm subscription status and entitlements
 
 The application should never query by a bare record ID alone. Every read and write should be scoped by `firmId`, and deal-restricted objects should also be scoped by `dealId`.
+
+### Roles and permissions
+
+I would keep the first production version role-based, with optional deal-level restrictions. That is enough for the early multi-tenant model and avoids premature fine-grained policy complexity.
+
+Firm-level roles:
+
+- `OWNER`
+  - manages billing, plan, firm settings, graph availability, users, and all workspaces
+- `ADMIN`
+  - manages users, graph availability, workspace settings, and integrations, but not payment methods unless explicitly granted
+- `PARTNER`
+  - creates and reviews deals/workflows, approves final outputs, and can see firm-level aggregate intelligence
+- `ANALYST`
+  - uploads documents, runs processing, maps evidence, answers follow-up questions, and drafts outputs
+- `REVIEWER`
+  - reviews evidence mappings, comments, requests changes, and approves assigned sections
+- `VIEWER`
+  - read-only access to assigned workspaces and exported outputs
+
+Deal or workflow membership should narrow access further when a workspace is sensitive. A firm admin may administer membership, but normal reads and writes should still require either broad firm permission or explicit deal membership.
+
+Permission checks should be capability-based in code, even if roles are the user-facing abstraction. For example: `billing.manage`, `members.invite`, `graphs.enable`, `documents.upload`, `workflow.run`, `outputs.approve`, and `exports.create`. This makes it possible to introduce custom roles later without rewriting every authorization branch.
 
 ### Authorization implementation contract
 
@@ -205,6 +258,8 @@ To make the access model real rather than aspirational, I would define an explic
   - `firmId`
   - allowed `dealIds`
   - role set
+  - permission set
+  - entitlement set
   - request ID
 - every database read/write flows through a small shared access layer rather than ad hoc Prisma calls in handlers
 - every tenant-critical query executes inside a transaction that sets session-local database context such as:
@@ -394,6 +449,9 @@ I would optimize for a small team that needs to move quickly without building a 
 - Queue/workflows:
   - keep the existing workflow engine for app-side orchestration
   - add a queue-backed importer for knowledge snapshots and graph-mapping tasks
+- Billing/payments:
+  - Stripe or equivalent hosted checkout, customer portal, invoices, and webhooks
+  - keep payment details out of the application database
 - Cache and rate limiting:
   - Redis or managed equivalent
 - Observability:
@@ -408,6 +466,7 @@ flowchart TB
   subgraph Edge["Application Layer"]
     Web["Next.js UI + API"]
     MCP["MCP API"]
+    BILL["Billing Webhooks"]
   end
 
   subgraph Data["Managed Data Services"]
@@ -422,6 +481,10 @@ flowchart TB
     GRAPH["Graph Mapping Worker"]
   end
 
+  subgraph External["External Services"]
+    PAY["Payment Provider"]
+  end
+
   Web --> PG
   Web --> OBJ
   Web --> REDIS
@@ -429,6 +492,9 @@ flowchart TB
   MCP --> PG
   MCP --> OBJ
   MCP --> REDIS
+  BILL --> PG
+  PAY --> BILL
+  Web --> PAY
   WF --> IMP
   WF --> GRAPH
   IMP --> PG
@@ -544,6 +610,8 @@ Those may become necessary later, but they are not where I would spend pre-seed 
 - admin-nominated industry and regulatory knowledge graphs
 - user-selected assistance goals for SOC 2, ISO 27001, GDPR, vendor review, and due diligence
 - evidence requirement mapping, gap follow-up, and output template generation
+- subscription plans, firm-level billing, usage metering, and entitlement-gated processing
+- role and permission management for owners, admins, partners, analysts, reviewers, and viewers
 - firm-level aggregate intelligence layer
 - more advanced assistant workflows grounded in firm-scoped graph state
 
@@ -554,11 +622,13 @@ Those may become necessary later, but they are not where I would spend pre-seed 
 - keep a single relational database rather than splitting operational and analytical stores immediately
 - keep one main region until customer or compliance pressure justifies more
 - postpone autonomous regulatory submissions and external representations
+- postpone complex enterprise procurement features such as multi-entity invoicing and custom contracts
 - postpone deep microservice decomposition
 
 ### Where I would not cut corners
 
 - tenant isolation
+- billing/entitlement checks before costly processing
 - provenance and snapshot versioning
 - auditability
 - secure storage boundaries
