@@ -119,7 +119,9 @@ export async function syncCheckoutSession(
       { expand: ["subscription", "subscription.items.data.price.product"] }
     );
 
-  if (checkoutSession.metadata?.firmId !== firm.firmId) {
+  // Validate ownership: check metadata first, fall back to customer match
+  const sessionFirmId = checkoutSession.metadata?.firmId;
+  if (sessionFirmId && sessionFirmId !== firm.firmId) {
     return {
       status: "error",
       message: "Checkout session does not belong to the active firm.",
