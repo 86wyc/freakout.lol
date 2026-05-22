@@ -40,7 +40,10 @@ describe("Sidebar — default nav", () => {
 
   it("renders Settings link", () => {
     render(<Sidebar />);
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings/account"
+    );
   });
 
   it("renders Sign out button", () => {

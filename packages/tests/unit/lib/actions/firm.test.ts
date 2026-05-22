@@ -263,7 +263,7 @@ describe("addFirmMemberByEmail", () => {
         role: "ANALYST",
       },
     });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/settings");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/settings/account");
   });
 });
 

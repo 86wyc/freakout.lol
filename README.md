@@ -1,46 +1,56 @@
 # KG Qualify
 
-`KG Qualify` is a document-driven due-diligence prototype for private equity workflows.
-It ingests deal documents, runs a staged analysis pipeline, highlights risks/claims/contradictions, generates structured reports, and supports analyst enquiries against generated evidence.
+**KG Qualify** is a knowledge graph platform for document-driven workflows. You define an ontology — nodes, edges, evidence requirements, and output templates — and the platform maps uploaded documents against it, surfaces gaps, and generates source-backed outputs for human review.
 
-## Assessment Fit
+The built-in **Commercial Due Diligence** workflow is the reference implementation: it applies an 8-question knowledge graph to deal documents, extracts claims, entities, and risks, and produces structured reports and analyst enquiries. But the platform is workflow-agnostic — you can build graphs for SOC 2, ISO 27001, GDPR, vendor review, or any other evidence-gathering process.
 
-This project addresses the Stage 2 brief by providing:
+## Core Concepts
 
-- Document ingestion for diligence materials.
-- Cross-document analysis and corroboration.
-- Contradiction and risk surfacing.
-- Structured outputs (insights, report artifacts, enquiries).
-
-The sample NovaBridge files are included in [`DEMO/`](./DEMO).
+- **Knowledge Graph** — an ontology of nodes (questions, controls, evidence types, risk categories) and edges (requires, satisfies, contradicts) that defines what a workflow needs to know.
+- **Assistance Goal** — a project is bound to one graph. The graph drives what evidence is required, what gaps exist, and what the output draft should contain.
+- **Evidence Mapping** — after the analysis pipeline runs, findings, claims, and question answers are automatically mapped to graph requirements. Analysts can mark requirements satisfied, partial, or waived.
+- **Output Draft** — a section-by-section draft generated from the graph's output template, populated with evidence from the completed pipeline run.
 
 ## Tech Stack
 
 - Framework: Next.js 16 (App Router)
 - UI: HeroUI + Tailwind CSS v4
-- Database: Postgres (Neon-compatible)
+- Database: Postgres (Neon-compatible) with Row-Level Security
 - ORM: Prisma 7 (`prisma-client` generator, multi-file schema)
-- Auth: Auth.js v5 (credentials-based)
+- Auth: Auth.js v5 (credentials-based, JWT)
 - Workflow Orchestration: `workflow` / `@workflow/next`
 - Storage: Vercel Blob
+- Graph Canvas: React Flow + Dagre (Graph Studio)
+- Error Monitoring: Sentry v10
+- Email: Resend
+- Billing: Stripe
 - Testing: Vitest + React Testing Library
 
-## Core Product Flow
+## Product Flow
 
-1. User creates a project.
-2. User uploads source files.
-3. User runs due diligence (`Be Diligent`).
-4. Workflow executes staged extraction, classification, indexing, corroboration, Q1-Q8 analyses, open questions, summary, final report.
-5. Analyst reviews:
-   - project-level insights
-   - generated report artifacts
-   - enquiries chat grounded in report + evidence chunks
+1. **Platform admin** creates a knowledge graph in Graph Studio (`/admin/graphs`) — defines nodes, edges, evidence requirements, and an output template.
+2. **Firm admin** enables the graph for their firm in Settings.
+3. **Analyst** creates a project, selects the graph as the assistance goal, and uploads source documents.
+4. **Pipeline** runs staged extraction, classification, indexing, corroboration, Q1–Q8 analyses, open questions, summary, and final report.
+5. **Evidence mapper** automatically maps pipeline outputs to graph requirements.
+6. **Analyst** reviews the evidence gap panel, marks requirements satisfied/waived, and reads the output draft.
+7. **Enquiries** let the analyst ask follow-up questions grounded in the completed report and source evidence.
+
+## Graph Studio
+
+Platform admins can create and edit knowledge graphs at `/admin/graphs`. Each graph has:
+
+- **Nodes** — typed ontology concepts (Question, Control, Evidence Type, Risk Category, Output Section, Entity)
+- **Edges** — typed relationships between nodes (Requires, Satisfies, Contradicts, Maps To, Escalates To, Part Of)
+- **Evidence Requirements** — what each node needs to be satisfied, with priority (high / medium / low)
+- **Output Templates** — section schemas that drive the output draft renderer
+
+The canvas uses React Flow with Dagre auto-layout. Nodes are draggable; edges can be drawn by connecting handles or added via the toolbar.
 
 ## Documentation Index
 
 - Architecture: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
 - Stage 3 Production Design: [`docs/STAGE3_PRODUCTION_ARCHITECTURE.md`](./docs/STAGE3_PRODUCTION_ARCHITECTURE.md)
-- Stage 3 MVP Build Plan: [`docs/STAGE3_MVP.md`](./docs/STAGE3_MVP.md)
 - Stage 3 Implementation Status: [`docs/STAGE3_IMPLEMENTATION_STATUS.md`](./docs/STAGE3_IMPLEMENTATION_STATUS.md)
 - Database Structure: [`docs/DATABASE.md`](./docs/DATABASE.md)
 - Next Steps: [`docs/NEXTSTEPS.md`](./docs/NEXTSTEPS.md)
@@ -63,10 +73,20 @@ yarn dev:https
 
 Configure these in `.env` / `.env.local`:
 
-- `DATABASE_URL` - pooled Postgres connection string
-- `DIRECT_URL` - direct Postgres connection string (migrations)
-- `AUTH_SECRET` - Auth.js secret
-- `AUTH_URL` - app URL (for example `http://localhost:3000` or `https://localhost:3000`)
+| Variable                      | Purpose                                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                | Pooled Postgres connection string                                                            |
+| `DIRECT_URL`                  | Direct Postgres connection string (migrations)                                               |
+| `AUTH_SECRET`                 | Auth.js secret                                                                               |
+| `AUTH_URL`                    | App URL (e.g. `https://localhost:3000`)                                                      |
+| `NEXT_PUBLIC_SENTRY_DSN`      | Sentry DSN for error monitoring                                                              |
+| `SENTRY_AUTH_TOKEN`           | Sentry auth token for source map uploads (CI only)                                           |
+| `RESEND_API_KEY`              | Resend API key for transactional email                                                       |
+| `STRIPE_SECRET_KEY`           | Stripe secret key                                                                            |
+| `STRIPE_WEBHOOK_SECRET`       | Stripe webhook signing secret                                                                |
+| `NEXT_PUBLIC_STRIPE_PRICE_ID` | Default upgrade price ID                                                                     |
+| `BLOB_READ_WRITE_TOKEN`       | Vercel Blob read/write token                                                                 |
+| `PLATFORM_ADMIN_USER_IDS`     | Comma-separated user IDs with platform admin access (legacy — use `User.systemRole` instead) |
 
 ## Prisma Workflow
 
@@ -74,16 +94,22 @@ After changing anything in `prisma/models/*.prisma`:
 
 ```bash
 yarn prisma generate
-yarn prisma migrate dev
+# Apply migration manually via Node pg client (see existing migration scripts)
 ```
+
+> **Note:** `prisma migrate dev` uses advisory locks that conflict with Neon's pooled connection. Apply migrations directly via the Node pg client using `DIRECT_URL`.
 
 ## Test Commands
 
 ```bash
-yarn test
-yarn test:watch
-yarn test:coverage
+yarn test                 # Unit tests
+yarn test:integration     # Integration tests (requires DATABASE_URL)
+yarn test:coverage        # Unit tests with coverage report
 ```
+
+## Demo Files
+
+The `DEMO/` directory contains sample NovaBridge Technologies documents for testing the Commercial Due Diligence workflow.
 
 ## Git Hooks
 

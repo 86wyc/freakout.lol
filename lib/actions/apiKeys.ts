@@ -211,7 +211,7 @@ export async function upsertApiKey(
     },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/api-keys");
   revalidatePath("/project");
   return {};
 }
@@ -228,7 +228,7 @@ export async function deleteApiKey(
     where: { userId: session.user.id, provider },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/api-keys");
   return {};
 }
 
@@ -258,7 +258,7 @@ export async function updateApiKeySettings(
     data: updateData,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/api-keys");
   revalidatePath("/project");
   return {};
 }

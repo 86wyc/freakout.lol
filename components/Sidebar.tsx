@@ -14,7 +14,7 @@ import type { UserFirmSummary } from "@/lib/actions/firm";
 
 export const navItems = [
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Settings", href: "/settings" },
+  { label: "Settings", href: "/settings/account" },
 ];
 
 type ProjectSubNavItem = {
@@ -220,9 +220,9 @@ function DefaultNav({
         </div>
       )}
       <NavLink
-        href="/settings"
+        href="/settings/account"
         label="Settings"
-        isActive={pathname === "/settings"}
+        isActive={isSettingsPath(pathname)}
       />
       {showAdmin && (
         <>
@@ -316,9 +316,9 @@ function ProjectNav({
         className={highlightSettings ? "rounded-md ring-2 ring-warning/45" : ""}
       >
         <NavLink
-          href="/settings"
+          href="/settings/account"
           label="Settings"
-          isActive={pathname === "/settings"}
+          isActive={isSettingsPath(pathname)}
         />
       </motion.div>
 
@@ -332,6 +332,10 @@ function ProjectNav({
       )}
     </div>
   );
+}
+
+function isSettingsPath(pathname: string): boolean {
+  return pathname === "/settings" || pathname.startsWith("/settings/");
 }
 
 function NavLink({

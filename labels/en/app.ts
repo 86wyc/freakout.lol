@@ -3,7 +3,7 @@ import type { AppLabels } from "@/labels/types";
 export const appLabels: AppLabels["app"] = {
   dashboard: {
     heading: "Dashboard",
-    description: "Welcome back.",
+    description: "Your knowledge graph workspaces.",
     projectsHeading: "Projects",
     createProjectCta: "Create project",
     statusHeading: "Status",
@@ -196,7 +196,7 @@ export const appLabels: AppLabels["app"] = {
   },
   projectCreation: {
     heading: "Create project",
-    description: "Name your project to start qualification.",
+    description: "Name your project and choose a knowledge graph workflow to guide evidence gathering.",
     nameLabel: "Project name",
     namePlaceholder: "Acme diligence workspace",
     filesLabel: "Files",
@@ -210,6 +210,18 @@ export const appLabels: AppLabels["app"] = {
   settings: {
     heading: "Settings",
     description: "Manage your firm workspace and provider configuration.",
+    accountNavLabel: "Account & firm",
+    billingNavLabel: "Billing",
+    apiKeysNavLabel: "API keys",
+    workflowsNavLabel: "Workflows",
+    accountHeading: "Account & firm",
+    accountDescription:
+      "Review your contact details, firm workspace, members, and audit history.",
+    contactHeading: "Contact",
+    contactDescription: "Your signed-in account details.",
+    contactNameLabel: "Name",
+    contactEmailLabel: "Email",
+    contactLocaleLabel: "Locale",
     firmHeading: "Firm workspace",
     firmDescription:
       "Your active firm controls project access, billing, graph workflows, and role-based permissions.",
@@ -225,6 +237,9 @@ export const appLabels: AppLabels["app"] = {
     memberRoleLabel: "Role",
     memberAddCta: "Add member",
     memberUpdateCta: "Update role",
+    pendingInvitationsHeading: "Pending invitations",
+    pendingInvitationExpiresLabel: "expires",
+    revokeInvitationCta: "Revoke",
     auditHeading: "Audit log",
     auditDescription:
       "Recent privileged actions in this firm workspace.",
@@ -240,15 +255,23 @@ export const appLabels: AppLabels["app"] = {
     billingPlanLabel: "Plan",
     billingStatusLabel: "Status",
     billingPeriodEndLabel: "Renews",
+    billingCancelsLabel: "cancels",
     billingUsageHeading: "This month's usage",
     billingUploadsLabel: "Uploads",
     billingRunsLabel: "Diligence runs",
     billingExportsLabel: "Exports",
     billingUpgradeCta: "Upgrade plan",
     billingManageCta: "Manage billing",
+    billingCancelCta: "Cancel subscription",
+    billingCancelConfirm:
+      "Cancel this subscription at the end of the current billing period?",
     billingNoSubscription: "No active subscription. Upgrade to unlock higher limits.",
+    billingManageToCancel:
+      "Use Manage billing to update payment details, invoices, or cancel in Stripe.",
     billingActiveSubscription:
       "Your subscription is active. Plan limits below reflect your current billing period.",
+    billingCancelScheduled:
+      "Your subscription is scheduled to cancel at the end of the current billing period.",
     billingSuccessHeading: "Subscription confirmed",
     billingSuccessDescription:
       "Stripe confirmed your checkout and your billing details have been updated.",

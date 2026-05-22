@@ -10,13 +10,12 @@ import { FirmModel } from "@/lib/models/FirmModel";
 import { AuditLogModel } from "@/lib/models/AuditLogModel";
 import { db } from "@/lib/db";
 import { resolvePlanFromStripePrice } from "@/lib/billing/stripe-plan";
+import { getRequestAppUrl } from "@/lib/app-url";
 import {
   AuditAction,
   BillingInterval,
   SubscriptionStatus,
 } from "@/lib/generated/prisma/client";
-
-const APP_URL = process.env.AUTH_URL ?? "https://localhost:3000";
 
 export type BillingSyncResult =
   | { status: "synced"; plan: string; subscriptionStatus: string }
@@ -74,12 +73,13 @@ export async function createCheckoutSession(
     stripeCustomerId = customer.id;
   }
 
+  const appUrl = await getRequestAppUrl();
   const checkoutSession = await stripe.checkout.sessions.create({
     customer: stripeCustomerId,
     mode: "subscription",
     line_items: [{ price: stripePriceId, quantity: 1 }],
-    success_url: `${APP_URL}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${APP_URL}/settings?billing=canceled`,
+    success_url: `${appUrl}/settings/billing?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/settings/billing?billing=canceled`,
     metadata: { firmId: firm.firmId },
     subscription_data: {
       metadata: { firmId: firm.firmId },
@@ -199,7 +199,7 @@ export async function syncCheckoutSession(
   });
 
   await BillingModel.upsertEntitlement(firm.firmId, planKey);
-  revalidatePath("/settings");
+  revalidatePath("/settings/billing");
 
   return {
     status: "synced",
@@ -225,12 +225,68 @@ export async function createPortalSession(): Promise<{ error?: string } | never>
     return { error: "No billing account found. Subscribe to a plan first." };
   }
 
+  const appUrl = await getRequestAppUrl();
   const portalSession = await stripe.billingPortal.sessions.create({
     customer: customer.stripeCustomerId,
-    return_url: `${APP_URL}/settings`,
+    return_url: `${appUrl}/settings/billing`,
   });
 
   redirect(portalSession.url);
+}
+
+export async function cancelSubscriptionAtPeriodEnd(): Promise<{
+  error?: string;
+}> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "Not authenticated." };
+  }
+
+  const firm = await FirmModel.getActiveFirmSummaryForUser(session.user.id);
+  const customer = await BillingModel.findCustomerByFirmId(firm.firmId);
+  const subscription = customer?.subscription;
+
+  if (!subscription) {
+    return {
+      error: "No active subscription found. Use Manage billing to open Stripe.",
+    };
+  }
+
+  if (subscription.cancelAtPeriodEnd) {
+    return {};
+  }
+
+  const updated = await stripe.subscriptions.update(
+    subscription.stripeSubscriptionId,
+    { cancel_at_period_end: true }
+  );
+
+  await BillingModel.updateSubscriptionCancellation({
+    stripeSubscriptionId: updated.id,
+    status: toSubscriptionStatus(updated.status),
+    currentPeriodEnd: new Date(updated.current_period_end * 1000),
+    cancelAtPeriodEnd: updated.cancel_at_period_end,
+    canceledAt: updated.canceled_at
+      ? new Date(updated.canceled_at * 1000)
+      : null,
+  });
+
+  await db.firm.update({
+    where: { id: firm.firmId },
+    data: { billingStatus: updated.status },
+  });
+
+  await AuditLogModel.record({
+    firmId: firm.firmId,
+    actorUserId: session.user.id,
+    action: AuditAction.BILLING_SUBSCRIPTION_CANCELED,
+    targetType: "Subscription",
+    targetId: updated.id,
+    metadata: { cancelAtPeriodEnd: updated.cancel_at_period_end },
+  });
+
+  revalidatePath("/settings/billing");
+  return {};
 }
 
 /**

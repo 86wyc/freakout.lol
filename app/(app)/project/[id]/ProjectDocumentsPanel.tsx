@@ -928,7 +928,7 @@ export function ProjectDocumentsPanel({
             <div className="flex flex-wrap items-center gap-2 text-sm text-warning">
               <span>{labels.setupApiKeysNotification}</span>
               <Link
-                href="/settings"
+                href="/settings/api-keys"
                 className="font-semibold underline underline-offset-2 hover:opacity-85"
               >
                 {labels.setupApiKeysLinkCta}

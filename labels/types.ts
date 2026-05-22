@@ -264,6 +264,17 @@ export type AppLabels = {
     settings: {
       heading: string;
       description: string;
+      accountNavLabel: string;
+      billingNavLabel: string;
+      apiKeysNavLabel: string;
+      workflowsNavLabel: string;
+      accountHeading: string;
+      accountDescription: string;
+      contactHeading: string;
+      contactDescription: string;
+      contactNameLabel: string;
+      contactEmailLabel: string;
+      contactLocaleLabel: string;
       firmHeading: string;
       firmDescription: string;
       firmNameLabel: string;
@@ -277,6 +288,9 @@ export type AppLabels = {
       memberRoleLabel: string;
       memberAddCta: string;
       memberUpdateCta: string;
+      pendingInvitationsHeading: string;
+      pendingInvitationExpiresLabel: string;
+      revokeInvitationCta: string;
       auditHeading: string;
       auditDescription: string;
       auditEmpty: string;
@@ -288,14 +302,19 @@ export type AppLabels = {
       billingPlanLabel: string;
       billingStatusLabel: string;
       billingPeriodEndLabel: string;
+      billingCancelsLabel: string;
       billingUsageHeading: string;
       billingUploadsLabel: string;
       billingRunsLabel: string;
       billingExportsLabel: string;
       billingUpgradeCta: string;
       billingManageCta: string;
+      billingCancelCta: string;
+      billingCancelConfirm: string;
       billingNoSubscription: string;
+      billingManageToCancel: string;
       billingActiveSubscription: string;
+      billingCancelScheduled: string;
       billingSuccessHeading: string;
       billingSuccessDescription: string;
       billingPendingHeading: string;

@@ -248,10 +248,10 @@ export function MobileSidebar({
                 className={highlightSettings ? "rounded-md ring-2 ring-warning/45" : ""}
               >
                 <Link
-                  href="/settings"
+                  href="/settings/account"
                   onClick={closeMenu}
                   className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
-                    pathname === "/settings"
+                    isSettingsPath(pathname)
                       ? "bg-content2 text-foreground"
                       : "text-foreground/70 hover:bg-content2 hover:text-foreground"
                   }`}
@@ -283,7 +283,7 @@ export function MobileSidebar({
                   href={item.href}
                   onClick={closeMenu}
                   className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
-                    pathname === item.href
+                    isActiveNavPath(pathname, item.href)
                       ? "bg-content2 text-foreground"
                       : "text-foreground/80 hover:bg-content2 hover:text-foreground"
                   }`}
@@ -319,4 +319,14 @@ export function MobileSidebar({
       </aside>
     </>
   );
+}
+
+function isActiveNavPath(pathname: string, href: string): boolean {
+  if (href.startsWith("/settings")) return isSettingsPath(pathname);
+
+  return pathname === href;
+}
+
+function isSettingsPath(pathname: string): boolean {
+  return pathname === "/settings" || pathname.startsWith("/settings/");
 }

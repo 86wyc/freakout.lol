@@ -51,7 +51,7 @@ export async function enableGraph(
     targetId: graphId,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/workflows");
   return {};
 }
 
@@ -76,7 +76,7 @@ export async function disableGraph(
     targetId: graphId,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/workflows");
   return {};
 }
 

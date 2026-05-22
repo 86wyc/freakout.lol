@@ -333,7 +333,7 @@ describe("ProjectDocumentsPanel", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Go to Settings" })
-    ).toHaveAttribute("href", "/settings");
+    ).toHaveAttribute("href", "/settings/api-keys");
     expect(toast.warning).not.toHaveBeenCalled();
     expect(openSpy).not.toHaveBeenCalled();
   });

@@ -131,6 +131,24 @@ export const BillingModel = {
     });
   },
 
+  async updateSubscriptionCancellation(input: {
+    stripeSubscriptionId: string;
+    status: SubscriptionStatus;
+    currentPeriodEnd: Date;
+    cancelAtPeriodEnd: boolean;
+    canceledAt?: Date | null;
+  }) {
+    return db.subscription.update({
+      where: { stripeSubscriptionId: input.stripeSubscriptionId },
+      data: {
+        status: input.status,
+        currentPeriodEnd: input.currentPeriodEnd,
+        cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+        canceledAt: input.canceledAt ?? null,
+      },
+    });
+  },
+
   // ── Plan entitlements ─────────────────────────────────────────────────────
 
   async upsertEntitlement(firmId: string, plan: string) {

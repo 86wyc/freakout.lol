@@ -130,6 +130,7 @@ vi.mock("@/lib/actions/billing", () => ({
   }),
   createCheckoutSession: vi.fn(),
   createPortalSession: vi.fn(),
+  cancelSubscriptionAtPeriodEnd: vi.fn(),
   syncCheckoutSession: vi.fn().mockResolvedValue({ status: "synced" }),
 }));
 
@@ -359,6 +360,17 @@ vi.mock("@/labels", () => ({
         settings: {
           heading: "Settings",
           description: "Manage your firm workspace and provider configuration.",
+          accountNavLabel: "Account & firm",
+          billingNavLabel: "Billing",
+          apiKeysNavLabel: "API keys",
+          workflowsNavLabel: "Workflows",
+          accountHeading: "Account & firm",
+          accountDescription: "Review your contact details.",
+          contactHeading: "Contact",
+          contactDescription: "Your signed-in account details.",
+          contactNameLabel: "Name",
+          contactEmailLabel: "Email",
+          contactLocaleLabel: "Locale",
           firmHeading: "Firm workspace",
           firmDescription:
             "Your active firm controls project access, billing, graph workflows, and role-based permissions.",
@@ -374,6 +386,9 @@ vi.mock("@/labels", () => ({
           memberRoleLabel: "Role",
           memberAddCta: "Add member",
           memberUpdateCta: "Update role",
+          pendingInvitationsHeading: "Pending invitations",
+          pendingInvitationExpiresLabel: "expires",
+          revokeInvitationCta: "Revoke",
           auditHeading: "Audit log",
           auditDescription: "Recent privileged actions in this firm workspace.",
           auditEmpty: "No audit events recorded yet.",
@@ -385,14 +400,22 @@ vi.mock("@/labels", () => ({
           billingPlanLabel: "Plan",
           billingStatusLabel: "Status",
           billingPeriodEndLabel: "Renews",
+          billingCancelsLabel: "cancels",
           billingUsageHeading: "This month's usage",
           billingUploadsLabel: "Uploads",
           billingRunsLabel: "Diligence runs",
           billingExportsLabel: "Exports",
           billingUpgradeCta: "Upgrade plan",
           billingManageCta: "Manage billing",
+          billingCancelCta: "Cancel subscription",
+          billingCancelConfirm:
+            "Cancel this subscription at the end of the current billing period?",
           billingNoSubscription: "No active subscription. Upgrade to unlock higher limits.",
+          billingManageToCancel:
+            "Use Manage billing to update payment details, invoices, or cancel in Stripe.",
           billingActiveSubscription: "Your subscription is active.",
+          billingCancelScheduled:
+            "Your subscription is scheduled to cancel at the end of the current billing period.",
           billingSuccessHeading: "Subscription confirmed",
           billingSuccessDescription: "Stripe confirmed your checkout.",
           billingPendingHeading: "Subscription is being finalized",
@@ -569,15 +592,40 @@ describe("ProjectCreationPage", () => {
   });
 });
 
-describe("SettingsPage", () => {
-  it("renders heading and api key section", async () => {
-    const { default: SettingsPage } = await import(
+describe("Settings pages", () => {
+  it("redirects the settings index to account settings", async () => {
+    const { default: SettingsIndexPage } = await import(
       "@/app/(app)/settings/page"
     );
-    const element = await SettingsPage({ searchParams: Promise.resolve({}) });
+    await expect(
+      SettingsIndexPage({ searchParams: Promise.resolve({}) })
+    ).rejects.toThrow("REDIRECT:/settings/account");
+  });
+
+  it("redirects billing return query params to billing settings", async () => {
+    const { default: SettingsIndexPage } = await import(
+      "@/app/(app)/settings/page"
+    );
+    await expect(
+      SettingsIndexPage({
+        searchParams: Promise.resolve({
+          billing: "success",
+          session_id: "cs_1",
+        }),
+      })
+    ).rejects.toThrow(
+      "REDIRECT:/settings/billing?billing=success&session_id=cs_1"
+    );
+  });
+
+  it("renders account and firm settings", async () => {
+    const { default: AccountSettingsPage } = await import(
+      "@/app/(app)/settings/account/page"
+    );
+    const element = await AccountSettingsPage();
     render(element);
     expect(
-      screen.getByRole("heading", { name: "Settings" })
+      screen.getByRole("heading", { name: "Account & firm" })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Firm workspace" })
@@ -592,6 +640,14 @@ describe("SettingsPage", () => {
       screen.getByRole("heading", { name: "Audit log" })
     ).toBeInTheDocument();
     expect(screen.getByText("FIRM_MEMBER_ADDED")).toBeInTheDocument();
+  });
+
+  it("renders api key settings", async () => {
+    const { default: ApiKeysSettingsPage } = await import(
+      "@/app/(app)/settings/api-keys/page"
+    );
+    const element = await ApiKeysSettingsPage();
+    render(element);
     expect(screen.getByTestId("api-key-section")).toBeInTheDocument();
   });
 });

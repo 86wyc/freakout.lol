@@ -205,7 +205,7 @@ export async function addFirmMemberByEmail(
       }),
     });
 
-    revalidatePath("/settings");
+    revalidatePath("/settings/account");
     return { invited: true };
   }
   await AuditLogModel.record({
@@ -220,7 +220,7 @@ export async function addFirmMemberByEmail(
     },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/account");
   return {};
 }
 
@@ -267,7 +267,7 @@ export async function updateFirmMemberRole(
     },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/account");
   return {};
 }
 
@@ -313,7 +313,7 @@ export async function revokeInvitation(
   const revoked = await InvitationModel.revoke(invitationId, firm.firmId);
   if (!revoked) return { error: "Invitation not found." };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings/account");
   return {};
 }
 
