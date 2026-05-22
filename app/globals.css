@@ -29,7 +29,7 @@
     overflow-x: clip;
   }
 
-  /* Light — Mythras warm palette */
+  /* Light — warm application palette */
   :root,
   .light,
   [data-theme="light"],

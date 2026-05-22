@@ -1,6 +1,6 @@
 ## Context
 
-This document describes how I would take the current `DD Qualify` Stage 2 prototype to a production-ready `Mythras` platform for multiple PE firms, multiple concurrent deals, and multiple analysts per firm.
+This document describes how I would take the current `DD Qualify` Stage 2 prototype to a production-ready project development platform for multiple teams, multiple concurrent projects, and multiple contributors per team.
 
 The current prototype already has the right core shape:
 
@@ -529,7 +529,7 @@ Those may become necessary later, but they are not where I would spend pre-seed 
 
 ## Summary
 
-The production version of Mythras should remain a fairly simple system in structure:
+The production version of the project development platform should remain a fairly simple system in structure:
 
 - one core app
 - one primary database
