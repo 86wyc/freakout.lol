@@ -368,4 +368,19 @@ export const appLabels: AppLabels["app"] = {
     apiKeysCountLabel: "API keys",
     diligenceJobsCountLabel: "Diligence jobs",
   },
+  paywall: {
+    heading: "Upgrade to unlock full insights",
+    description:
+      "Detailed findings, claims analysis, contradiction reports, and AI-powered enquiries are available on paid plans.",
+    upgradeCta: "Upgrade now",
+    priceNote: "Starting at $10/seat per month. Cancel anytime.",
+    features: [
+      "Full findings with evidence and severity details",
+      "Claim verification with source references",
+      "Contradiction analysis across documents",
+      "AI-powered investor Q&A (Enquiries)",
+      "Generated reports and export bundles",
+    ],
+    teaserRisksHeading: "High-risk findings detected",
+  },
 };

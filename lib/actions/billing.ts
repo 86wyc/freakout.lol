@@ -290,6 +290,138 @@ export async function cancelSubscriptionAtPeriodEnd(): Promise<{
 }
 
 /**
+ * Creates a Stripe Checkout session for a single seat at the per-seat price.
+ * Used by the paywall upgrade CTA. If the firm already has a subscription,
+ * this adds a seat to the existing subscription instead.
+ */
+export async function createSeatCheckoutSession(): Promise<never> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const seatPriceId = process.env.STRIPE_SEAT_PRICE_ID ?? process.env.NEXT_PUBLIC_STRIPE_SEAT_PRICE_ID;
+  if (!seatPriceId) {
+    throw new Error("STRIPE_SEAT_PRICE_ID is not configured.");
+  }
+
+  const firm = await FirmModel.getActiveFirmSummaryForUser(session.user.id);
+
+  // Check if the firm already has a subscription — if so, add a seat
+  const existingCustomer = await BillingModel.findCustomerByFirmId(firm.firmId);
+  if (existingCustomer?.subscription) {
+    // Retrieve the subscription and increment quantity
+    const sub = await stripe.subscriptions.retrieve(
+      existingCustomer.subscription.stripeSubscriptionId,
+      { expand: ["items.data"] }
+    );
+    const item = sub.items.data[0];
+    if (item) {
+      await stripe.subscriptions.update(sub.id, {
+        items: [{ id: item.id, quantity: (item.quantity ?? 1) + 1 }],
+        proration_behavior: "create_prorations",
+      });
+      // Update local entitlement
+      await BillingModel.updateSeatCount(firm.firmId, (item.quantity ?? 1) + 1);
+      revalidatePath("/settings/billing");
+      redirect("/settings/billing?billing=success");
+    }
+  }
+
+  // No existing subscription — create a new checkout for 1 seat
+  let stripeCustomerId: string | undefined;
+  if (existingCustomer) {
+    stripeCustomerId = existingCustomer.stripeCustomerId;
+  } else {
+    const customer = await stripe.customers.create({
+      email: session.user.email ?? undefined,
+      name: firm.name,
+      metadata: { firmId: firm.firmId },
+    });
+    await BillingModel.upsertCustomer({
+      firmId: firm.firmId,
+      stripeCustomerId: customer.id,
+      billingEmail: session.user.email ?? null,
+    });
+    stripeCustomerId = customer.id;
+  }
+
+  const appUrl = await getRequestAppUrl();
+  const checkoutSession = await stripe.checkout.sessions.create({
+    customer: stripeCustomerId,
+    mode: "subscription",
+    line_items: [{ price: seatPriceId, quantity: 1 }],
+    success_url: `${appUrl}/settings/billing?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/settings/billing?billing=canceled`,
+    metadata: { firmId: firm.firmId },
+    subscription_data: {
+      metadata: { firmId: firm.firmId },
+    },
+  });
+
+  if (!checkoutSession.url) {
+    throw new Error("Stripe did not return a checkout URL.");
+  }
+
+  redirect(checkoutSession.url);
+}
+
+/**
+ * Removes one seat from the firm's subscription.
+ * Blocks removal if the firm has more active members than the resulting seat count.
+ * Cannot go below 1 seat (use cancel instead).
+ */
+export async function removeSeat(): Promise<{ error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "Not authenticated." };
+  }
+
+  const firm = await FirmModel.getActiveFirmSummaryForUser(session.user.id);
+  const customer = await BillingModel.findCustomerByFirmId(firm.firmId);
+  const subscription = customer?.subscription;
+
+  if (!subscription) {
+    return { error: "No active subscription found." };
+  }
+
+  // Retrieve current quantity from Stripe
+  const sub = await stripe.subscriptions.retrieve(
+    subscription.stripeSubscriptionId,
+    { expand: ["items.data"] }
+  );
+  const item = sub.items.data[0];
+  const currentQuantity = item?.quantity ?? 1;
+
+  if (currentQuantity <= 1) {
+    return { error: "Cannot remove the last seat. Cancel the subscription instead." };
+  }
+
+  // Guard: don't allow fewer seats than active members
+  const activeMemberCount = await db.firmMembership.count({
+    where: { firmId: firm.firmId, status: "ACTIVE" },
+  });
+
+  const newQuantity = currentQuantity - 1;
+  if (newQuantity < activeMemberCount) {
+    return {
+      error: `Your firm has ${activeMemberCount} active member${activeMemberCount === 1 ? "" : "s"}. Remove a member before reducing seats.`,
+    };
+  }
+
+  // Decrement in Stripe
+  await stripe.subscriptions.update(sub.id, {
+    items: [{ id: item!.id, quantity: newQuantity }],
+    proration_behavior: "create_prorations",
+  });
+
+  // Update local entitlement
+  await BillingModel.updateSeatCount(firm.firmId, newQuantity);
+  revalidatePath("/settings/billing");
+  return {};
+}
+
+/**
  * Returns the current billing summary for the active firm.
  */
 export async function getBillingSummary(): Promise<{

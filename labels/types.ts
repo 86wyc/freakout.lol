@@ -407,5 +407,13 @@ export type AppLabels = {
       apiKeysCountLabel: string;
       diligenceJobsCountLabel: string;
     };
+    paywall: {
+      heading: string;
+      description: string;
+      upgradeCta: string;
+      priceNote: string;
+      features: string[];
+      teaserRisksHeading: string;
+    };
   };
 };

@@ -322,6 +322,14 @@ export const BillingModel = {
     return { allowed: true };
   },
 
+  async updateSeatCount(firmId: string, seatCount: number): Promise<void> {
+    await db.planEntitlement.upsert({
+      where: { firmId },
+      create: { firmId, maxSeats: seatCount },
+      update: { maxSeats: seatCount },
+    });
+  },
+
   async checkSeatAvailability(firmId: string): Promise<EntitlementResult> {
     const [entitlement, seatCount] = await Promise.all([
       this.getEntitlement(firmId),
