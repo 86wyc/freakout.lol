@@ -23,6 +23,7 @@ The first Stage 3 release should be narrow enough to ship without weakening the 
 - audit logs for privileged and evidence-changing actions
 - billing customer and subscription skeleton
 - plan entitlements for seats, active workflows, document processing, exports, and graph runs
+- admin area for graph and ontology management
 - one enabled knowledge graph workflow, preferably SOC 2 or vendor review
 - evidence requirements, evidence mappings, gaps, and output template drafts
 - migration path for existing single-user data into default firms
@@ -36,6 +37,7 @@ The first Stage 3 release should be narrow enough to ship without weakening the 
 - customer-managed encryption keys
 - complete replacement of diligence terminology in internal code
 - public marketplace of graph templates
+- visual graph canvas editing beyond a structured admin form
 
 ## Data Model Checklist
 
@@ -97,6 +99,19 @@ The first Stage 3 release should be narrow enough to ship without weakening the 
   - `version`
   - `status`
   - `schema`
+- `OntologyNode`
+  - `knowledgeGraphDefinitionId`
+  - `key`
+  - `type`
+  - `title`
+  - `description`
+  - metadata
+- `OntologyEdge`
+  - `knowledgeGraphDefinitionId`
+  - `fromNodeId`
+  - `toNodeId`
+  - `relationshipType`
+  - metadata
 - `FirmKnowledgeGraph`
   - `firmId`
   - `knowledgeGraphDefinitionId`
@@ -152,6 +167,7 @@ Use roles as the UI abstraction, but enforce capability checks in code.
 | `members.invite` | Yes | Yes | No | No | No | No |
 | `members.manage_roles` | Yes | Yes | No | No | No | No |
 | `graphs.enable` | Yes | Yes | No | No | No | No |
+| `graphs.configure_firm` | Yes | Yes | No | No | No | No |
 | `projects.create` | Yes | Yes | Yes | Yes | No | No |
 | `projects.view_all` | Yes | Yes | Yes | No | No | No |
 | `documents.upload` | Yes | Yes | Yes | Yes | No | No |
@@ -163,6 +179,55 @@ Use roles as the UI abstraction, but enforce capability checks in code.
 | `audit.view` | Yes | Yes | Yes | No | No | No |
 
 Project-level membership can narrow access further. A user with `projects.view_all` can see all firm projects. A user without it must be explicitly assigned to the project.
+
+## Admin Area: Graph Studio
+
+Stage 3 should include a minimal admin area for knowledge graph ontology management. It does not need a full visual graph canvas in the MVP, but it should provide structured forms for building and versioning graph definitions.
+
+### Platform admin responsibilities
+
+Platform admins manage canonical graph templates:
+
+- create graph definitions
+- define ontology nodes such as controls, requirements, evidence types, form fields, and report sections
+- define ontology relationships such as satisfies, requires, maps_to, contradicts, and escalates_to
+- define accepted source types for each evidence requirement
+- define gap rules and reviewer escalation rules
+- define output templates for forms, questionnaires, reports, and review packs
+- validate a draft graph against sample documents
+- publish immutable graph versions
+- deprecate old versions and define migration notes
+
+### Firm admin responsibilities
+
+Firm admins manage firm-level graph availability:
+
+- enable approved graph templates for the firm
+- assign which members or roles can use a graph workflow
+- set default reviewers for a graph workflow
+- configure firm-specific labels and output defaults
+- view graph version usage across firm workspaces
+
+Firm admins should not be able to edit canonical ontology definitions unless they also hold a platform-admin permission. That separation prevents one firm's custom workflow from mutating the template other firms rely on.
+
+### MVP screens
+
+- Graph definitions list
+- Graph definition detail
+- Ontology nodes editor
+- Ontology relationships editor
+- Evidence requirements editor
+- Output template editor
+- Publish/version history panel
+- Firm graph enablement screen
+
+### Versioning rules
+
+- draft graph versions are editable
+- published graph versions are immutable
+- changing a published graph creates a new draft version
+- each project/workflow stores the graph version it started with
+- migrating an existing workspace to a newer graph version is explicit and audited
 
 ## Billing Policy
 
@@ -280,8 +345,10 @@ SOC 2 should follow once the graph machinery is stable. Start with a small contr
 
 ### Stage 3.4: graph workflow MVP
 
-- graph definition seed
+- Graph Studio admin area with structured graph definition editing
+- graph definition seed for the first workflow
 - firm-enabled graph list
+- firm graph enablement screen
 - assistance goal selection during project setup
 - evidence requirement and mapping models
 - gap list
@@ -304,7 +371,8 @@ Stage 3 MVP is ready when:
 - cross-firm reads are rejected by service tests and database policy tests
 - billing status and plan entitlements exist per firm
 - expensive actions are blocked when entitlements are exceeded
-- a firm admin can enable the first knowledge graph workflow
+- a platform admin can create, edit, version, and publish the first graph ontology
+- a firm admin can enable the first knowledge graph workflow for their firm
 - a user can choose an assistance goal, upload documents, and run processing
 - the app maps evidence to requirements and surfaces gaps
 - the app drafts at least one source-backed output
@@ -317,4 +385,4 @@ Stage 3 MVP is ready when:
 - Should `Project` be renamed to `Workflow` publicly before or after Stage 3 MVP?
 - Should RLS ship in Stage 3.1 or Stage 3.5?
 - Which users can manage payment methods: only owner, or owner plus explicit billing admin?
-- How much of graph definition editing should be UI-driven versus seed/config-driven for the first release?
+- Should graph editing start as structured forms only, or should a visual graph canvas be part of the first admin area?

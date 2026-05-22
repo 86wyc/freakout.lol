@@ -198,6 +198,10 @@ I would add these concepts alongside the existing diligence model:
 - `KnowledgeGraphDefinition`
   - versioned ontology for an industry, standard, or workflow
   - examples: SOC 2, ISO 27001, GDPR, vendor review, commercial due diligence
+- `OntologyNode`
+  - entity, control, requirement, evidence type, form field, or output section in a graph definition
+- `OntologyEdge`
+  - typed relationship between ontology nodes, such as satisfies, requires, contradicts, maps_to, or escalates_to
 - `AssistanceGoal`
   - user-selected objective for a workspace
   - binds a project or deal to one graph definition and output workflow
@@ -405,7 +409,28 @@ I would keep the workspace API and the MCP API backed by the same authorization 
 
 The workflow expansion should focus on configurable knowledge graphs and evidence-backed assistance workflows.
 
-### Admin graph setup
+### Admin Area: Graph Studio
+
+The product needs a real admin area for graph and ontology management. This should not be hidden in seeds forever, because the value of the platform depends on how quickly the team can define, test, version, and publish new compliance workflows.
+
+I would split admin responsibilities into two scopes:
+
+- Platform Admin:
+  - creates and edits reusable graph templates
+  - defines ontology nodes and relationships
+  - defines evidence requirements and acceptable source types
+  - defines output templates, form fields, and report sections
+  - defines gap rules, reviewer escalation rules, and validation checks
+  - versions, tests, publishes, deprecates, and migrates graph definitions
+- Firm Admin:
+  - enables approved graph templates for a firm
+  - controls which firm members can use a graph workflow
+  - configures firm-specific labels, reviewer assignments, and output defaults
+  - cannot mutate the canonical platform graph unless granted a platform-admin role
+
+Graph Studio should treat graph edits like schema changes. Draft graph versions can be edited freely, but published versions should be immutable. Changes should create a new version, and existing workspaces should stay pinned to the graph version they started with until explicitly migrated.
+
+### Graph setup
 
 Admins should be able to nominate graph definitions for specific industries, standards, and review types. Each definition should describe:
 
