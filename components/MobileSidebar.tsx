@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { FiChevronLeft } from "react-icons/fi";
+import { LuShield } from "react-icons/lu";
 import { navItems } from "@/components/Sidebar";
 import { LogoutButton } from "@/components/LogoutButton";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -28,7 +29,13 @@ function buildProjectSubNav(input: {
   ];
 }
 
-export function MobileSidebar() {
+export function MobileSidebar({
+  showAdmin = false,
+  adminLabel = "Admin",
+}: {
+  showAdmin?: boolean;
+  adminLabel?: string;
+}) {
   const [openPathname, setOpenPathname] = useState<string | null>(null);
   const [highlightSettings, setHighlightSettings] = useState(false);
   const pathname = usePathname();
@@ -252,22 +259,56 @@ export function MobileSidebar() {
                   Settings
                 </Link>
               </motion.div>
+
+              {showAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={closeMenu}
+                  className={`flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+                    pathname === "/admin" || pathname.startsWith("/admin/")
+                      ? "bg-content2 text-foreground"
+                      : "text-foreground/70 hover:bg-content2 hover:text-foreground"
+                  }`}
+                >
+                  <LuShield className="size-4" aria-hidden="true" />
+                  {adminLabel}
+                </Link>
+              )}
             </>
           ) : (
-            navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={closeMenu}
-                className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
-                  pathname === item.href
-                    ? "bg-content2 text-foreground"
-                    : "text-foreground/80 hover:bg-content2 hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))
+            <>
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={closeMenu}
+                  className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+                    pathname === item.href
+                      ? "bg-content2 text-foreground"
+                      : "text-foreground/80 hover:bg-content2 hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              {showAdmin && (
+                <>
+                  <div className="my-2 border-t border-divider" />
+                  <Link
+                    href="/admin"
+                    onClick={closeMenu}
+                    className={`flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+                      pathname === "/admin" || pathname.startsWith("/admin/")
+                        ? "bg-content2 text-foreground"
+                        : "text-foreground/80 hover:bg-content2 hover:text-foreground"
+                    }`}
+                  >
+                    <LuShield className="size-4" aria-hidden="true" />
+                    {adminLabel}
+                  </Link>
+                </>
+              )}
+            </>
           )}
         </nav>
 

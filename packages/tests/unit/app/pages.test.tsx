@@ -130,6 +130,7 @@ vi.mock("@/lib/actions/billing", () => ({
   }),
   createCheckoutSession: vi.fn(),
   createPortalSession: vi.fn(),
+  syncCheckoutSession: vi.fn().mockResolvedValue({ status: "synced" }),
 }));
 
 // Mock auth for marketing layout
@@ -391,6 +392,15 @@ vi.mock("@/labels", () => ({
           billingUpgradeCta: "Upgrade plan",
           billingManageCta: "Manage billing",
           billingNoSubscription: "No active subscription. Upgrade to unlock higher limits.",
+          billingActiveSubscription: "Your subscription is active.",
+          billingSuccessHeading: "Subscription confirmed",
+          billingSuccessDescription: "Stripe confirmed your checkout.",
+          billingPendingHeading: "Subscription is being finalized",
+          billingPendingDescription: "Refresh shortly if the plan does not update.",
+          billingCanceledHeading: "Checkout canceled",
+          billingCanceledDescription: "No subscription changes were made.",
+          billingSyncErrorHeading: "Billing sync needs attention",
+          billingSyncErrorDescription: "Could not verify the subscription.",
         },
         draft: {
           heading: "Output draft",
@@ -564,7 +574,7 @@ describe("SettingsPage", () => {
     const { default: SettingsPage } = await import(
       "@/app/(app)/settings/page"
     );
-    const element = await SettingsPage();
+    const element = await SettingsPage({ searchParams: Promise.resolve({}) });
     render(element);
     expect(
       screen.getByRole("heading", { name: "Settings" })

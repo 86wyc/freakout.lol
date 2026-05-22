@@ -24,5 +24,6 @@ export async function updateUserSystemRole(
   });
 
   revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
   return {};
 }

@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiChevronLeft } from "react-icons/fi";
+import { LuShield } from "react-icons/lu";
 import { LogoutButton } from "@/components/LogoutButton";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { FirmSwitcher } from "@/components/FirmSwitcher";
@@ -36,7 +37,15 @@ function buildProjectSubNav(input: {
   ];
 }
 
-export function Sidebar({ firms = [] }: { firms?: UserFirmSummary[] }) {
+export function Sidebar({
+  firms = [],
+  showAdmin = false,
+  adminLabel = "Admin",
+}: {
+  firms?: UserFirmSummary[];
+  showAdmin?: boolean;
+  adminLabel?: string;
+}) {
   const pathname = usePathname();
   const projectMatch = pathname.match(/^\/project\/([^/]+)/);
   const projectId = projectMatch?.[1] ?? null;
@@ -147,9 +156,16 @@ export function Sidebar({ firms = [] }: { firms?: UserFirmSummary[] }) {
             projectSidebarData={projectSidebarData}
             pathname={pathname}
             highlightSettings={highlightSettings}
+            showAdmin={showAdmin}
+            adminLabel={adminLabel}
           />
         ) : (
-          <DefaultNav pathname={pathname} recentProjects={recentProjects} />
+          <DefaultNav
+            pathname={pathname}
+            recentProjects={recentProjects}
+            showAdmin={showAdmin}
+            adminLabel={adminLabel}
+          />
         )}
       </nav>
       <div className="space-y-1 border-t border-divider pt-3">
@@ -163,7 +179,17 @@ export function Sidebar({ firms = [] }: { firms?: UserFirmSummary[] }) {
   );
 }
 
-function DefaultNav({ pathname, recentProjects }: { pathname: string; recentProjects: RecentProject[] }) {
+function DefaultNav({
+  pathname,
+  recentProjects,
+  showAdmin,
+  adminLabel,
+}: {
+  pathname: string;
+  recentProjects: RecentProject[];
+  showAdmin: boolean;
+  adminLabel: string;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <NavLink
@@ -198,6 +224,17 @@ function DefaultNav({ pathname, recentProjects }: { pathname: string; recentProj
         label="Settings"
         isActive={pathname === "/settings"}
       />
+      {showAdmin && (
+        <>
+          <div className="my-2 border-t border-divider" />
+          <NavLink
+            href="/admin"
+            label={adminLabel}
+            isActive={pathname === "/admin" || pathname.startsWith("/admin/")}
+            icon={<LuShield className="size-4" aria-hidden="true" />}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -207,6 +244,8 @@ function ProjectNav({
   projectSidebarData,
   pathname,
   highlightSettings,
+  showAdmin,
+  adminLabel,
 }: {
   projectId: string;
   projectSidebarData: {
@@ -219,6 +258,8 @@ function ProjectNav({
   } | null;
   pathname: string;
   highlightSettings: boolean;
+  showAdmin: boolean;
+  adminLabel: string;
 }) {
   const activeProjectSidebarData = projectId ? projectSidebarData : null;
 
@@ -280,6 +321,15 @@ function ProjectNav({
           isActive={pathname === "/settings"}
         />
       </motion.div>
+
+      {showAdmin && (
+        <NavLink
+          href="/admin"
+          label={adminLabel}
+          isActive={pathname === "/admin" || pathname.startsWith("/admin/")}
+          icon={<LuShield className="size-4" aria-hidden="true" />}
+        />
+      )}
     </div>
   );
 }
@@ -289,21 +339,24 @@ function NavLink({
   label,
   isActive,
   indent,
+  icon,
 }: {
   href: string;
   label: string;
   isActive: boolean;
   indent?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
-      className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${indent ? "ml-2" : ""} ${
+      className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${indent ? "ml-2" : ""} ${
         isActive
           ? "bg-content2 text-foreground"
           : "text-foreground/70 hover:bg-content2 hover:text-foreground"
       }`}
     >
+      {icon}
       {label}
     </Link>
   );

@@ -4,6 +4,7 @@ import { stripe, getStripeWebhookSecret } from "@/lib/stripe";
 import { BillingModel } from "@/lib/models/BillingModel";
 import { AuditLogModel } from "@/lib/models/AuditLogModel";
 import { db } from "@/lib/db";
+import { resolvePlanFromStripePrice } from "@/lib/billing/stripe-plan";
 import {
   AuditAction,
   BillingInterval,
@@ -62,8 +63,7 @@ async function handleSubscriptionUpsert(
       : null,
   });
 
-  // Derive plan from price metadata or product metadata
-  const planKey = (price?.metadata?.plan as string | undefined) ?? "starter";
+  const planKey = await resolvePlanFromStripePrice(stripe, price);
 
   // Update firm plan and billing status
   await db.firm.update({

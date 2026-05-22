@@ -48,10 +48,9 @@ export default async function GraphDetailPage({ params }: Props) {
   }));
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-divider bg-content1 px-4 py-3">
-        <div className="flex items-center gap-3 min-w-0">
+    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-divider bg-content1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/admin/graphs"
             className="flex items-center gap-1 text-sm text-foreground/60 transition-colors hover:text-foreground"
@@ -68,7 +67,7 @@ export default async function GraphDetailPage({ params }: Props) {
           <span className="text-xs text-foreground/40">v{graph.version}</span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 sm:justify-end">
           <span className="text-xs text-foreground/40">
             {graph.nodes.length} nodes · {graph._count.evidenceRequirements} requirements
           </span>
@@ -97,8 +96,7 @@ export default async function GraphDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Canvas — fills remaining height */}
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <GraphCanvas
           graphId={graph.id}
           graphStatus={graph.status}

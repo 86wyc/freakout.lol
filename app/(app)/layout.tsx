@@ -1,9 +1,10 @@
 import { Sidebar } from "@/components/Sidebar";
 import { MobileSidebar } from "@/components/MobileSidebar";
 import { Providers } from "@/components/providers/Providers";
-import { FirmSwitcher } from "@/components/FirmSwitcher";
 import { auth } from "@/lib/auth";
 import { listUserFirms } from "@/lib/actions/firm";
+import { isPlatformAdmin } from "@/lib/authz/platform-admin";
+import { getLabelsForLocale } from "@/labels";
 
 export default async function AppLayout({
   children,
@@ -15,6 +16,7 @@ export default async function AppLayout({
     ? {
         id: session.user.id!,
         locale: session.user.locale ?? "en",
+        systemRole: session.user.systemRole ?? "USER",
         name: session.user.name ?? null,
         email: session.user.email ?? null,
         image: session.user.image ?? null,
@@ -22,20 +24,29 @@ export default async function AppLayout({
     : null;
 
   const firms = user ? await listUserFirms() : [];
+  const { labels } = getLabelsForLocale(user?.locale ?? "en");
+  const showAdmin = isPlatformAdmin(user?.systemRole);
 
   return (
     <Providers user={user}>
       <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-clip md:flex-row">
         {/* Mobile header with hamburger */}
         <header className="flex w-full min-w-0 items-center gap-3 border-b border-divider bg-background px-4 py-3 md:hidden">
-          <MobileSidebar />
+          <MobileSidebar
+            showAdmin={showAdmin}
+            adminLabel={labels.app.admin.sidebarCta}
+          />
           <span className="text-sm font-semibold text-foreground">
             KG Qualify
           </span>
         </header>
 
         {/* Desktop sidebar */}
-        <Sidebar firms={firms} />
+        <Sidebar
+          firms={firms}
+          showAdmin={showAdmin}
+          adminLabel={labels.app.admin.sidebarCta}
+        />
 
         <main className="flex min-h-0 min-w-0 w-full flex-1 overflow-x-clip overflow-y-auto p-4 sm:p-6">
           {children}

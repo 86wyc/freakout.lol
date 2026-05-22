@@ -1,10 +1,12 @@
 import {
   LuBuilding2,
+  LuCircleCheck,
   LuClipboardList,
   LuCreditCard,
   LuKey,
   LuNetwork,
   LuShield,
+  LuTriangleAlert,
   LuUsers,
 } from "react-icons/lu";
 import { getApiKeyStatuses } from "@/lib/actions/apiKeys";
@@ -17,10 +19,17 @@ import {
   revokeInvitation,
   updateFirmMemberRole,
 } from "@/lib/actions/firm";
-import { getBillingSummary, createCheckoutSession, createPortalSession } from "@/lib/actions/billing";
+import {
+  getBillingSummary,
+  createCheckoutSession,
+  createPortalSession,
+  syncCheckoutSession,
+  type BillingSyncResult,
+} from "@/lib/actions/billing";
 import { listAvailableGraphs, enableGraph, disableGraph } from "@/lib/actions/graph";
 import { ApiKeySection } from "@/components/settings/ApiKeySection";
 import { getLabelsForLocale } from "@/labels";
+import type { AppLabels } from "@/labels/types";
 import { FirmRole } from "@/lib/generated/prisma/client";
 
 export const metadata = {
@@ -35,8 +44,24 @@ const MANAGEABLE_ROLES = [
   FirmRole.VIEWER,
 ];
 
-export default async function SettingsPage() {
+type SettingsPageProps = {
+  searchParams: Promise<{
+    billing?: string | string[];
+    session_id?: string | string[];
+  }>;
+};
+
+export default async function SettingsPage({
+  searchParams,
+}: SettingsPageProps) {
   const { labels } = getLabelsForLocale("en");
+  const resolvedSearchParams = await searchParams;
+  const billingReturn = getSearchParam(resolvedSearchParams?.billing);
+  const checkoutSessionId = getSearchParam(resolvedSearchParams?.session_id);
+  const billingSync =
+    billingReturn === "success"
+      ? await syncCheckoutSession(checkoutSessionId ?? "")
+      : null;
   const [apiKeyStatuses, firm, members, auditLogs, billing, availableGraphs, pendingInvites] = await Promise.all([
     getApiKeyStatuses(),
     getActiveFirmSummary(),
@@ -48,6 +73,10 @@ export default async function SettingsPage() {
   ]);
   const t = labels.app.settings;
   const tGraph = labels.app.graphWorkflow;
+  const billingNotice = getBillingNotice(billingReturn, billingSync, t);
+  const hasActiveSubscription = isActiveSubscriptionStatus(
+    billing?.subscription?.status ?? billing?.billingStatus
+  );
   const canManageMembers =
     firm?.permissions.includes("members.invite") ||
     firm?.permissions.includes("members.manage_roles");
@@ -72,6 +101,34 @@ export default async function SettingsPage() {
           {t.description}
         </p>
       </div>
+
+      {billingNotice && (
+        <div
+          className={`mb-8 flex items-start gap-3 rounded-lg border p-4 ${
+            billingNotice.tone === "success"
+              ? "border-success/30 bg-success/10"
+              : "border-warning/30 bg-warning/10"
+          }`}
+        >
+          {billingNotice.tone === "success" ? (
+            <LuCircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+          ) : (
+            <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+          )}
+          <div>
+            <p
+              className={`text-sm font-semibold ${
+                billingNotice.tone === "success" ? "text-success" : "text-warning"
+              }`}
+            >
+              {billingNotice.heading}
+            </p>
+            <p className="mt-1 text-sm text-foreground/70">
+              {billingNotice.description}
+            </p>
+          </div>
+        </div>
+      )}
 
       <section className="mb-8">
         <div className="mb-4 flex items-start gap-3">
@@ -425,7 +482,13 @@ export default async function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-divider bg-content1 p-4 space-y-4">
+        <div
+          className={`space-y-4 rounded-lg border p-4 ${
+            hasActiveSubscription
+              ? "border-success/30 bg-success/5"
+              : "border-divider bg-content1"
+          }`}
+        >
           {/* Plan + status */}
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
@@ -433,15 +496,22 @@ export default async function SettingsPage() {
                 {t.billingPlanLabel}
               </dt>
               <dd className="mt-1 font-medium text-foreground capitalize">
-                {billing?.plan ?? "starter"}
+                {formatPlanLabel(billing?.plan ?? "starter")}
               </dd>
             </div>
             <div>
               <dt className="text-xs font-medium uppercase text-foreground/45">
                 {t.billingStatusLabel}
               </dt>
-              <dd className="mt-1 font-medium text-foreground capitalize">
-                {billing?.billingStatus ?? "trialing"}
+              <dd className="mt-1 flex items-center gap-2">
+                <span className="font-medium text-foreground capitalize">
+                  {formatBillingStatus(billing?.billingStatus ?? "trialing")}
+                </span>
+                {hasActiveSubscription && (
+                  <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+                    {formatBillingStatus(billing?.subscription?.status ?? billing?.billingStatus ?? "active")}
+                  </span>
+                )}
               </dd>
             </div>
             {billing?.subscription?.currentPeriodEnd && (
@@ -460,6 +530,12 @@ export default async function SettingsPage() {
               </div>
             )}
           </dl>
+
+          {hasActiveSubscription && (
+            <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
+              {t.billingActiveSubscription}
+            </p>
+          )}
 
           {/* Usage meters */}
           {billing?.usage && billing.entitlement && (
@@ -573,4 +649,59 @@ export default async function SettingsPage() {
       </section>
     </div>
   );
+}
+
+function getSearchParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function formatPlanLabel(plan: string): string {
+  return plan.replace(/_/g, " ");
+}
+
+function formatBillingStatus(status: string): string {
+  return status.replace(/_/g, " ").toLowerCase();
+}
+
+function isActiveSubscriptionStatus(status: string | undefined | null): boolean {
+  return status === "ACTIVE" || status === "TRIALING" || status === "active" || status === "trialing";
+}
+
+function getBillingNotice(
+  billingReturn: string | null,
+  syncResult: BillingSyncResult | null,
+  labels: AppLabels["app"]["settings"]
+): { tone: "success" | "warning"; heading: string; description: string } | null {
+  if (billingReturn === "canceled") {
+    return {
+      tone: "warning",
+      heading: labels.billingCanceledHeading,
+      description: labels.billingCanceledDescription,
+    };
+  }
+
+  if (billingReturn !== "success") return null;
+
+  if (syncResult?.status === "synced") {
+    return {
+      tone: "success",
+      heading: labels.billingSuccessHeading,
+      description: labels.billingSuccessDescription,
+    };
+  }
+
+  if (syncResult?.status === "error") {
+    return {
+      tone: "warning",
+      heading: labels.billingSyncErrorHeading,
+      description: labels.billingSyncErrorDescription,
+    };
+  }
+
+  return {
+    tone: "warning",
+    heading: labels.billingPendingHeading,
+    description: labels.billingPendingDescription,
+  };
 }
