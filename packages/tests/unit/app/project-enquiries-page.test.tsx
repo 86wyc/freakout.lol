@@ -38,6 +38,16 @@ vi.mock("@/lib/models/DiligenceJobModel", () => ({
   },
 }));
 
+const mockCheckSubscriptionAccess = vi.fn();
+vi.mock("@/lib/authz/subscription-gate", () => ({
+  checkSubscriptionAccess: (...args: unknown[]) =>
+    mockCheckSubscriptionAccess(...args),
+}));
+
+vi.mock("@/components/PaywallOverlay", () => ({
+  PaywallOverlay: () => <div>PaywallOverlay</div>,
+}));
+
 vi.mock("@/app/(app)/project/[id]/enquiries/EnquiriesView", () => ({
   EnquiriesView: ({ projectName }: { projectName: string }) => (
     <div>EnquiriesView:{projectName}</div>
@@ -71,6 +81,14 @@ vi.mock("@/labels", () => ({
           genericError: "Could not generate an answer for that question.",
           placeholder: "Ask a follow-up about the report or uploaded data...",
         },
+        paywall: {
+          heading: "Upgrade to unlock full insights",
+          description: "Detailed findings are available on paid plans.",
+          upgradeCta: "Upgrade now",
+          priceNote: "Starting at $10/seat per month.",
+          features: ["Full findings"],
+          teaserRisksHeading: "High-risk findings detected",
+        },
       },
     },
   })),
@@ -83,6 +101,7 @@ const { default: EnquiriesPage } = await import(
 describe("project enquiries page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckSubscriptionAccess.mockResolvedValue({ hasAccess: true });
   });
 
   it("redirects unauthenticated users to login", async () => {
@@ -156,5 +175,29 @@ describe("project enquiries page", () => {
 
     render(page);
     expect(screen.getByText("EnquiriesView:Alpha Project")).toBeInTheDocument();
+  });
+
+  it("renders paywall overlay for free users", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", locale: "en" } });
+    mockFindByIdForUser.mockResolvedValue({
+      id: "project-1",
+      name: "Alpha Project",
+      status: "reviewed",
+      createdAt: new Date(),
+    });
+    mockCheckSubscriptionAccess.mockResolvedValue({
+      hasAccess: false,
+      firmId: "firm-1",
+      plan: "starter",
+      billingStatus: "trialing",
+    });
+
+    const page = await EnquiriesPage({
+      params: Promise.resolve({ id: "project-1" }),
+    });
+
+    render(page);
+    expect(screen.getByText("Enquiries")).toBeInTheDocument();
+    expect(screen.getByText("PaywallOverlay")).toBeInTheDocument();
   });
 });
