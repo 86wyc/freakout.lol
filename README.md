@@ -1,6 +1,6 @@
 # Freakout.lol
 
-**Freakout** is an open-source platform for knowledge-graph led data annotation and investigation. You define an ontology — nodes, edges, evidence requirements, and output templates — and the platform annotates uploaded documents against it, surfaces gaps, and generates structured outputs with full provenance for human review.
+**Freakout.lol** is an open-source platform for Knowledge-graph interrogations & investigation. You define an ontology — nodes, edges, evidence requirements, and output templates — and the platform annotates uploaded documents against it, surfaces gaps, and generates structured outputs with full provenance for human review.
 
 The built-in **Commercial Due Diligence** workflow is the reference implementation: it applies an 8-question knowledge graph to deal documents, extracts claims, entities, and risks, and produces structured reports and analyst enquiries. But the platform is workflow-agnostic — you can build graphs for any evidence-gathering or investigation process.
 

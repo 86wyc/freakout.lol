@@ -3,7 +3,7 @@ import type { MarketingLabels } from "@/labels/types";
 export const marketingLabels: MarketingLabels = {
   hero: {
     badge: "Open Source",
-    title: "Knowledge-graph led data annotation and investigation.",
+    title: "Knowledge-graph interrogations & investigation.",
     description:
       "Define ontologies, upload documents, and let the platform annotate, cross-reference, and surface what matters — with full provenance.",
     trialCta: "Get Started",

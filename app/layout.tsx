@@ -11,7 +11,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Freakout.lol | Open-Source Knowledge-Graph Led Data Annotation & Investigation",
   description:
-    "Freakout is an open-source platform for knowledge-graph led data annotation and investigation. Define ontologies, upload documents, and generate structured insights.",
+    "Freakout is an open-source platform for Knowledge-graph interrogations & investigation. Define ontologies, upload documents, and generate structured insights.",
 };
 
 // Runs synchronously before React hydrates — prevents flash of wrong theme.

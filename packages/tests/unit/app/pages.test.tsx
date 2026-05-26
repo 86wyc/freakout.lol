@@ -182,7 +182,7 @@ vi.mock("@/labels", () => ({
       marketing: {
         hero: {
           badge: "Open Source",
-          title: "Knowledge-graph led data annotation and investigation.",
+          title: "Knowledge-graph interrogations & investigation.",
           description:
             "Define ontologies, upload documents, and let the platform annotate...",
           trialCta: "Get Started",
@@ -700,7 +700,7 @@ describe("HomePage", () => {
     render(<HomePage />);
     expect(
       screen.getByRole("heading", {
-        name: /Knowledge-graph led data annotation and investigation/i,
+        name: /Knowledge-graph interrogations & investigation/i,
       })
     ).toBeInTheDocument();
   });
