@@ -227,7 +227,10 @@ export function InsightsView({ projectName, labels, data }: Props) {
                   <p className="mt-1 break-words text-sm text-foreground/70">
                     {finding.summary}
                   </p>
-                  <FindingDetails metadata={finding.metadata} />
+                  <FindingDetails
+                    metadata={finding.metadata}
+                    severityLabel={labels.severityLabel}
+                  />
                 </div>
               );
             })}
@@ -373,7 +376,13 @@ export function InsightsView({ projectName, labels, data }: Props) {
   );
 }
 
-function FindingDetails({ metadata }: { metadata: unknown }) {
+function FindingDetails({
+  metadata,
+  severityLabel,
+}: {
+  metadata: unknown;
+  severityLabel: string;
+}) {
   if (!metadata || typeof metadata !== "object") return null;
   const meta = metadata as Record<string, unknown>;
   const details =
@@ -390,7 +399,7 @@ function FindingDetails({ metadata }: { metadata: unknown }) {
     <div className="mt-2 space-y-1 border-t border-divider/50 pt-2">
       {severity && (
         <p className="text-xs">
-          <span className="font-medium text-foreground/60">Severity: </span>
+          <span className="font-medium text-foreground/60">{severityLabel}: </span>
           <SeverityBadge severity={severity} />
         </p>
       )}

@@ -134,6 +134,7 @@ export const appLabels: AppLabels["app"] = {
     jobInfoHeading: "Job summary",
     stagesHeading: "Pipeline stages",
     confidenceLabel: "Confidence",
+    severityLabel: "Severity",
     statusLabel: "Status",
     typeLabel: "Type",
     modelLabel: "Model",

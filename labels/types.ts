@@ -190,6 +190,7 @@ export type AppLabels = {
       jobInfoHeading: string;
       stagesHeading: string;
       confidenceLabel: string;
+      severityLabel: string;
       statusLabel: string;
       typeLabel: string;
       modelLabel: string;

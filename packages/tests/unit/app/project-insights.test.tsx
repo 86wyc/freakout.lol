@@ -6,6 +6,9 @@ vi.mock("@/labels/types", () => ({}));
 const { InsightsView } = await import(
   "@/app/(app)/project/[id]/insights/InsightsView"
 );
+const { RestrictedInsightsView } = await import(
+  "@/app/(app)/project/[id]/insights/RestrictedInsightsView"
+);
 
 const mockLabels = {
   heading: "Insights",
@@ -26,6 +29,7 @@ const mockLabels = {
   claimsHeading: "Claims",
   entitiesHeading: "Entities",
   contradictionsHeading: "Contradictions",
+  severityLabel: "Severity",
   findingTypes: {
     RISK: "Risk",
     OPPORTUNITY: "Opportunity",
@@ -225,5 +229,28 @@ describe("InsightsView", () => {
     expect(screen.getByText("Contradictions")).toBeInTheDocument();
     expect(screen.getByText(/Revenue is \$10M/)).toBeInTheDocument();
     expect(screen.getByText(/Revenue is \$5M/)).toBeInTheDocument();
+  });
+});
+
+describe("RestrictedInsightsView", () => {
+  it("renders only classification metadata with skeleton rows", () => {
+    render(
+      <RestrictedInsightsView
+        projectName="Acme"
+        labels={mockLabels}
+        data={{
+          findings: [{ type: "RISK", severity: "high" }],
+          claims: [{ status: "CONTRADICTED", confidence: 0.1 }],
+        }}
+      />
+    );
+
+    expect(screen.getByText("Findings")).toBeInTheDocument();
+    expect(screen.getByText("Risk")).toBeInTheDocument();
+    expect(screen.getByText("Severity:")).toBeInTheDocument();
+    expect(screen.getByText("high")).toBeInTheDocument();
+    expect(screen.getByText("Claims")).toBeInTheDocument();
+    expect(screen.getByText("Contradicted")).toBeInTheDocument();
+    expect(screen.getByText("10%")).toBeInTheDocument();
   });
 });

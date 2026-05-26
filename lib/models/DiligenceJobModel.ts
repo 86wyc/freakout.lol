@@ -5,6 +5,7 @@ import {
   type DiligenceStageName,
   type DiligenceStageStatus,
 } from "@/lib/generated/prisma/client";
+import { asNullableString, asRecord } from "@/lib/utils/coerce";
 
 export type DiligenceJobSummary = {
   id: string;
@@ -45,6 +46,19 @@ export type DiligenceInsightsSummary = {
     confidence: number | null;
   }>;
 };
+
+export type RestrictedDiligenceInsights = {
+  findings: Array<{ type: string; severity: string | null }>;
+  claims: Array<{ status: string; confidence: number | null }>;
+};
+
+const VISIBLE_FINDING_SEVERITIES = new Set(["critical", "high", "medium", "low"]);
+
+function getVisibleFindingSeverity(metadata: unknown): string | null {
+  const severity = asNullableString(asRecord(metadata).severity)?.toLowerCase() ?? null;
+
+  return severity && VISIBLE_FINDING_SEVERITIES.has(severity) ? severity : null;
+}
 
 function toJobSummary(
   row: {
@@ -358,6 +372,60 @@ export const DiligenceJobModel = {
       claims,
       entities,
       contradictions,
+    };
+  },
+
+  async getRestrictedInsightsForProject(input: {
+    projectId: string;
+    userId: string;
+  }): Promise<RestrictedDiligenceInsights | null> {
+    const latestCompletedJob = await db.diligenceJob.findFirst({
+      where: {
+        projectId: input.projectId,
+        userId: input.userId,
+        status: DiligenceJobStatus.COMPLETED,
+      },
+      orderBy: { completedAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!latestCompletedJob) {
+      return null;
+    }
+
+    const [findings, claims] = await Promise.all([
+      db.diligenceFinding.findMany({
+        where: {
+          jobId: latestCompletedJob.id,
+          projectId: input.projectId,
+          userId: input.userId,
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          type: true,
+          metadata: true,
+        },
+      }),
+      db.diligenceClaim.findMany({
+        where: {
+          jobId: latestCompletedJob.id,
+          projectId: input.projectId,
+          userId: input.userId,
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          status: true,
+          confidence: true,
+        },
+      }),
+    ]);
+
+    return {
+      findings: findings.map((finding) => ({
+        type: finding.type,
+        severity: getVisibleFindingSeverity(finding.metadata),
+      })),
+      claims,
     };
   },
 

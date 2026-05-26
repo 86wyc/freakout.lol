@@ -327,4 +327,60 @@ describe("DiligenceJobModel", () => {
       expect(result!.contradictions).toEqual([]);
     });
   });
+
+  describe("getRestrictedInsightsForProject", () => {
+    it("returns null without loading output rows when no completed job exists", async () => {
+      mockDiligenceJob.findFirst.mockResolvedValue(null);
+
+      const result = await DiligenceJobModel.getRestrictedInsightsForProject({
+        projectId: "project-1",
+        userId: "user-1",
+      });
+
+      expect(result).toBeNull();
+      expect(mockDiligenceFinding.findMany).not.toHaveBeenCalled();
+      expect(mockDiligenceClaim.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns only allow-listed skeleton metadata for restricted viewers", async () => {
+      mockDiligenceJob.findFirst.mockResolvedValue({ id: "job-1" });
+      mockDiligenceFinding.findMany.mockResolvedValue([
+        {
+          type: "RISK",
+          metadata: { severity: "HIGH", details: "Confidential finding detail" },
+        },
+        {
+          type: "WARNING",
+          metadata: { severity: "secret", details: "Confidential warning detail" },
+        },
+      ]);
+      mockDiligenceClaim.findMany.mockResolvedValue([
+        { status: "CONTRADICTED", confidence: 0.1 },
+      ]);
+
+      const result = await DiligenceJobModel.getRestrictedInsightsForProject({
+        projectId: "project-1",
+        userId: "user-1",
+      });
+
+      expect(result).toEqual({
+        findings: [
+          { type: "RISK", severity: "high" },
+          { type: "WARNING", severity: null },
+        ],
+        claims: [{ status: "CONTRADICTED", confidence: 0.1 }],
+      });
+      expect(mockDiligenceFinding.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: { type: true, metadata: true },
+        })
+      );
+      expect(mockDiligenceClaim.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: { status: true, confidence: true },
+        })
+      );
+      expect(JSON.stringify(result)).not.toContain("Confidential");
+    });
+  });
 });
