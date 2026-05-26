@@ -234,10 +234,23 @@ describe("InsightsView", () => {
 
 describe("RestrictedInsightsView", () => {
   it("renders only classification metadata with skeleton rows", () => {
+    const mockPaywallLabels = {
+      heading: "Upgrade to unlock full insights",
+      description: "Detailed findings available on paid plans.",
+      upgradeCta: "Upgrade now",
+      priceNote: "Starting at $10/seat per month. Cancel anytime.",
+      features: [
+        "Full findings with evidence and severity details",
+        "Claim verification with source references",
+      ],
+      teaserRisksHeading: "High-risk findings detected",
+    };
+
     render(
       <RestrictedInsightsView
         projectName="Acme"
         labels={mockLabels}
+        paywallLabels={mockPaywallLabels}
         data={{
           findings: [{ type: "RISK", severity: "high" }],
           claims: [{ status: "CONTRADICTED", confidence: 0.1 }],

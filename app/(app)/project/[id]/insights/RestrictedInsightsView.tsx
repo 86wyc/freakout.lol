@@ -4,17 +4,22 @@ import {
   LuCircleX,
   LuEye,
   LuLightbulb,
+  LuLock,
   LuShieldCheck,
+  LuSparkles,
   LuTriangleAlert,
 } from "react-icons/lu";
+import Link from "next/link";
 import type { AppLabels } from "@/labels/types";
 import type { RestrictedDiligenceInsights } from "@/lib/models/DiligenceJobModel";
 
 type InsightsLabels = AppLabels["app"]["insights"];
+type PaywallLabels = AppLabels["app"]["paywall"];
 
 type Props = {
   projectName: string;
   labels: InsightsLabels;
+  paywallLabels: PaywallLabels;
   data: RestrictedDiligenceInsights | null;
 };
 
@@ -44,7 +49,7 @@ const claimStatusColors: Record<string, string> = {
   INCONCLUSIVE: "text-warning",
 };
 
-export function RestrictedInsightsView({ projectName, labels, data }: Props) {
+export function RestrictedInsightsView({ projectName, labels, paywallLabels, data }: Props) {
   if (!data) {
     return (
       <div className="min-w-0 w-full space-y-4">
@@ -146,6 +151,41 @@ export function RestrictedInsightsView({ projectName, labels, data }: Props) {
           </div>
         </section>
       )}
+
+      {/* Upgrade CTA */}
+      <section className="rounded-xl border border-divider bg-content1 p-6">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
+            <LuLock className="size-6 text-primary" aria-hidden="true" />
+          </div>
+          <h2 className="mt-4 text-lg font-semibold text-foreground">
+            {paywallLabels.heading}
+          </h2>
+          <p className="mt-2 max-w-md text-sm text-foreground/70">
+            {paywallLabels.description}
+          </p>
+          <ul className="mt-4 space-y-2 text-left text-sm text-foreground/80">
+            {paywallLabels.features.map((feature) => (
+              <li key={feature} className="flex items-start gap-2">
+                <LuSparkles
+                  className="mt-0.5 size-4 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/settings/billing"
+            className="mt-6 inline-flex rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            {paywallLabels.upgradeCta}
+          </Link>
+          <p className="mt-3 text-xs text-foreground/50">
+            {paywallLabels.priceNote}
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

@@ -45,6 +45,7 @@ export default async function InsightsPage({ params }: InsightsPageProps) {
       <RestrictedInsightsView
         projectName={project.name}
         labels={labels.app.insights}
+        paywallLabels={labels.app.paywall}
         data={data}
       />
     );
