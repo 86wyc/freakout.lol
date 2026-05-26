@@ -29,6 +29,13 @@
     overflow-x: clip;
   }
 
+  /* Ensure all anchor-like elements show pointer cursor */
+  a[href],
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+
   /* Light — warm application palette */
   :root,
   .light,

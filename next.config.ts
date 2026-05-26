@@ -30,6 +30,13 @@ const nextConfig: NextConfig = {
     "@workflow/world-local",
     "@vercel/queue",
   ],
+  experimental: {
+    optimizePackageImports: [
+      "react-icons",
+      "motion/react",
+      "@heroui/react",
+    ],
+  },
   async headers() {
     const baseHeaders = [
       { key: "Content-Security-Policy", value: contentSecurityPolicy },

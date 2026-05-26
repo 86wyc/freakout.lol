@@ -17,6 +17,35 @@ import {
   ProjectDocumentProcessingStatus,
 } from "@/lib/generated/prisma/client";
 
+/**
+ * Converts raw extraction errors into user-friendly messages.
+ * Strips internal SDK details (e.g., Vercel Blob error codes) and
+ * provides actionable guidance.
+ */
+function humanizeExtractionError(error: unknown, filename: string): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("500") || lower.includes("internal server error")) {
+    return `Failed to read "${filename}" from storage. This is usually temporary — try reprocessing the file.`;
+  }
+  if (lower.includes("404") || lower.includes("not found")) {
+    return `File "${filename}" could not be found in storage. Try re-uploading it.`;
+  }
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return `Reading "${filename}" timed out. Try reprocessing — if it persists, the file may be too large.`;
+  }
+  if (lower.includes("stream unavailable")) {
+    return `Could not open "${filename}" for reading. Try reprocessing or re-uploading the file.`;
+  }
+  if (lower.includes("unsupported") || lower.includes("corrupt")) {
+    return `"${filename}" could not be processed — the file may be corrupted or in an unsupported format.`;
+  }
+
+  // Fallback: keep it short and actionable
+  return `Failed to process "${filename}". Try reprocessing or re-uploading the file.`;
+}
+
 export async function runDocumentExtraction(
   ctx: StageContext
 ): Promise<StageExecutionResult> {
@@ -89,8 +118,7 @@ export async function runDocumentExtraction(
       }
     } catch (error) {
       processingStatus = ProjectDocumentProcessingStatus.FAILED;
-      processingError =
-        error instanceof Error ? error.message : "Extraction failed.";
+      processingError = humanizeExtractionError(error, filename);
     }
 
     await db.projectDocument.upsert({

@@ -113,7 +113,7 @@ export function Sidebar({
     };
   }, [projectId, refreshSidebarData]);
 
-  // Poll for updates while on a project page (every 15s) to catch async state changes
+  // Poll for updates while on a project page (every 30s) to catch async state changes
   useEffect(() => {
     if (!projectId) {
       if (refreshTimerRef.current) {
@@ -125,7 +125,7 @@ export function Sidebar({
 
     refreshTimerRef.current = setInterval(() => {
       refreshSidebarData();
-    }, 15_000);
+    }, 30_000);
 
     return () => {
       if (refreshTimerRef.current) {

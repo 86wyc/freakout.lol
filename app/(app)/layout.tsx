@@ -23,8 +23,11 @@ export default async function AppLayout({
       }
     : null;
 
-  const firms = user ? await listUserFirms() : [];
-  const { labels } = getLabelsForLocale(user?.locale ?? "en");
+  // Fetch firms in parallel with label resolution to avoid waterfall
+  const [firms, { labels }] = await Promise.all([
+    user ? listUserFirms() : Promise.resolve([]),
+    Promise.resolve(getLabelsForLocale(user?.locale ?? "en")),
+  ]);
   const showAdmin = isPlatformAdmin(user?.systemRole);
 
   return (
