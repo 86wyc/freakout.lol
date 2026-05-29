@@ -65,6 +65,7 @@ export const mockDb = {
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn(),
   },
   project: {
     count: vi.fn(),

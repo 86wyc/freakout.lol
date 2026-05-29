@@ -101,6 +101,7 @@ describe("Credentials authorize", () => {
       id: "1",
       email: "test@example.com",
       password: "hashed_password",
+      emailVerified: new Date("2026-05-29T10:00:00.000Z"),
       name: "Test",
       image: null,
     });
@@ -114,11 +115,31 @@ describe("Credentials authorize", () => {
     expect(result).toBeNull();
   });
 
+  it("returns null when credentials user has not verified their email", async () => {
+    mockFindUnique.mockResolvedValue({
+      id: "user-1",
+      email: "test@example.com",
+      password: "hashed_password",
+      emailVerified: null,
+      name: "Test User",
+      image: null,
+    });
+
+    const result = await authorizeFunction({
+      email: "test@example.com",
+      password: "password123",
+    });
+
+    expect(result).toBeNull();
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
   it("returns user object when credentials are valid", async () => {
     mockFindUnique.mockResolvedValue({
       id: "user-1",
       email: "test@example.com",
       password: "hashed_password",
+      emailVerified: new Date("2026-05-29T10:00:00.000Z"),
       name: "Test User",
       image: "https://example.com/avatar.png",
     });

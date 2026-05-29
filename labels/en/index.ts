@@ -17,5 +17,40 @@ export const enLabels: AppLabels = {
     sourceLabel: "Source file",
     noSummaryFallback: "Open this document to review the full content.",
   },
+  internalDocs: {
+    heading: "Internal documentation",
+    description:
+      "Admin-only architecture, database, delivery, and operations documentation.",
+    sidebarEyebrow: "Internal Docs",
+    indexEyebrow: "Admin",
+    indexHeading: "Internal documentation",
+    indexDescription:
+      "Browse protected markdown documentation for platform administrators.",
+    allDocsCta: "All internal docs",
+    sourceLabel: "Source file",
+    noSummaryFallback: "Open this document to review the full content.",
+  },
+  auth: {
+    verifyEmail: {
+      successHeading: "Email verified",
+      successDescription:
+        "Your email address is verified. You can now sign in to your account.",
+      emailChangeSuccessHeading: "Email change confirmed",
+      emailChangeSuccessDescription:
+        "Your sign-in email has been updated. Use the new address the next time you sign in.",
+      expiredHeading: "Verification link expired",
+      expiredDescription:
+        "This verification link is no longer valid. Register again to receive a fresh link.",
+      invalidHeading: "Verification link unavailable",
+      invalidDescription:
+        "This verification link is invalid or has already been used.",
+      missingHeading: "Verification link missing",
+      missingDescription:
+        "Open the verification link from your email to finish creating your account.",
+      signInCta: "Sign in",
+      settingsCta: "Back to settings",
+      registerCta: "Create account",
+    },
+  },
   app: appLabels,
 };

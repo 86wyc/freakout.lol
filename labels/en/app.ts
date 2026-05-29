@@ -238,6 +238,26 @@ export const appLabels: AppLabels["app"] = {
     contactNameLabel: "Name",
     contactEmailLabel: "Email",
     contactLocaleLabel: "Locale",
+    securityHeading: "Account security",
+    securityDescription:
+      "Update your sign-in email or password for this account.",
+    changeEmailHeading: "Change email",
+    changeEmailDescription:
+      "We will send a confirmation link to the new email before switching your sign-in address.",
+    currentEmailLabel: "Current email",
+    newEmailLabel: "New email",
+    currentPasswordLabel: "Current password",
+    requestEmailChangeCta: "Send confirmation",
+    requestEmailChangePendingCta: "Sending...",
+    changePasswordHeading: "Change password",
+    changePasswordDescription:
+      "Use a strong password with uppercase, lowercase, number, and symbol.",
+    newPasswordLabel: "New password",
+    confirmPasswordLabel: "Confirm new password",
+    changePasswordCta: "Update password",
+    changePasswordPendingCta: "Updating...",
+    passwordUnavailableMessage:
+      "Password changes are only available for accounts with password sign-in.",
     firmHeading: "Firm workspace",
     firmDescription:
       "Your active firm controls project access, billing, graph workflows, and role-based permissions.",

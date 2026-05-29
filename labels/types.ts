@@ -10,6 +10,18 @@ export type WorkflowStepLabel = {
   description: string;
 };
 
+export type DocsLabels = {
+  heading: string;
+  description: string;
+  sidebarEyebrow: string;
+  indexEyebrow: string;
+  indexHeading: string;
+  indexDescription: string;
+  allDocsCta: string;
+  sourceLabel: string;
+  noSummaryFallback: string;
+};
+
 export type MarketingLabels = {
   hero: {
     badge: string;
@@ -47,16 +59,24 @@ export type MarketingLabels = {
 
 export type AppLabels = {
   marketing: MarketingLabels;
-  docs: {
-    heading: string;
-    description: string;
-    sidebarEyebrow: string;
-    indexEyebrow: string;
-    indexHeading: string;
-    indexDescription: string;
-    allDocsCta: string;
-    sourceLabel: string;
-    noSummaryFallback: string;
+  docs: DocsLabels;
+  internalDocs: DocsLabels;
+  auth: {
+    verifyEmail: {
+      successHeading: string;
+      successDescription: string;
+      emailChangeSuccessHeading: string;
+      emailChangeSuccessDescription: string;
+      expiredHeading: string;
+      expiredDescription: string;
+      invalidHeading: string;
+      invalidDescription: string;
+      missingHeading: string;
+      missingDescription: string;
+      signInCta: string;
+      settingsCta: string;
+      registerCta: string;
+    };
   };
   app: {
     dashboard: {
@@ -289,6 +309,22 @@ export type AppLabels = {
       contactNameLabel: string;
       contactEmailLabel: string;
       contactLocaleLabel: string;
+      securityHeading: string;
+      securityDescription: string;
+      changeEmailHeading: string;
+      changeEmailDescription: string;
+      currentEmailLabel: string;
+      newEmailLabel: string;
+      currentPasswordLabel: string;
+      requestEmailChangeCta: string;
+      requestEmailChangePendingCta: string;
+      changePasswordHeading: string;
+      changePasswordDescription: string;
+      newPasswordLabel: string;
+      confirmPasswordLabel: string;
+      changePasswordCta: string;
+      changePasswordPendingCta: string;
+      passwordUnavailableMessage: string;
       firmHeading: string;
       firmDescription: string;
       firmNameLabel: string;

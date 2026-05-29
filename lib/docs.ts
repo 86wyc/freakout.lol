@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 const DOCS_DIR = path.join(process.cwd(), "docs");
+const DEFAULT_DOCS_BASE_PATH = "/docs";
 
 export type DocEntry = {
   relativePath: string;
@@ -26,6 +27,20 @@ function slugifySegment(segment: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
+}
+
+function normalizeBasePath(basePath: string): string {
+  const normalized = `/${basePath.split("/").filter(Boolean).join("/")}`;
+  return normalized === "/" ? "" : normalized;
+}
+
+function buildDocHref(basePath: string, routeSegments: string[]): string {
+  const root = normalizeBasePath(basePath);
+  if (routeSegments.length === 0) {
+    return root || "/";
+  }
+
+  return `${root}/${routeSegments.join("/")}`;
 }
 
 function titleFromFilename(filename: string): string {
@@ -94,35 +109,43 @@ async function walkMarkdownFiles(dir: string): Promise<string[]> {
   return files.flat().sort((a, b) => a.localeCompare(b));
 }
 
-export const getAllDocs = cache(async (): Promise<DocEntry[]> => {
-  const markdownFiles = await walkMarkdownFiles(DOCS_DIR);
+export const getAllDocs = cache(
+  async (basePath = DEFAULT_DOCS_BASE_PATH): Promise<DocEntry[]> => {
+    const markdownFiles = await walkMarkdownFiles(DOCS_DIR);
 
-  return Promise.all(
-    markdownFiles.map(async (sourcePath) => {
-      const content = await fs.readFile(sourcePath, "utf8");
-      const relativePath = toPosixPath(path.relative(DOCS_DIR, sourcePath));
-      const routeSegments = relativePath
-        .replace(/\.md$/i, "")
-        .split("/")
-        .map(slugifySegment)
-        .filter(Boolean);
+    return Promise.all(
+      markdownFiles.map(async (sourcePath) => {
+        const content = await fs.readFile(sourcePath, "utf8");
+        const relativePath = toPosixPath(path.relative(DOCS_DIR, sourcePath));
+        const routeSegments = relativePath
+          .replace(/\.md$/i, "")
+          .split("/")
+          .map(slugifySegment)
+          .filter(Boolean);
 
-      return {
-        relativePath,
-        sourcePath,
-        routeSegments,
-        href: `/docs/${routeSegments.join("/")}`,
-        title: extractTitle(content, path.basename(sourcePath)),
-        summary: extractSummary(content),
-        content,
-      };
-    })
-  );
-});
+        return {
+          relativePath,
+          sourcePath,
+          routeSegments,
+          href: buildDocHref(basePath, routeSegments),
+          title: extractTitle(content, path.basename(sourcePath)),
+          summary: extractSummary(content),
+          content,
+        };
+      })
+    );
+  }
+);
 
 export const getDocBySlug = cache(
-  async (slugSegments: string[]): Promise<DocEntry | null> => {
-    const docs = await getAllDocs();
+  async (
+    slugSegments: string[],
+    basePath = DEFAULT_DOCS_BASE_PATH
+  ): Promise<DocEntry | null> => {
+    const docs =
+      basePath === DEFAULT_DOCS_BASE_PATH
+        ? await getAllDocs()
+        : await getAllDocs(basePath);
     return (
       docs.find(
         (doc) =>

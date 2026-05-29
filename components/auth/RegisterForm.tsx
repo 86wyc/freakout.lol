@@ -44,7 +44,10 @@ export function RegisterForm({ inviteToken }: { inviteToken?: string | null }) {
   const criteria = evaluatePassword(password);
 
   const [state, formAction, pending] = useActionState(
-    async (_prev: { error?: string } | undefined, formData: FormData) => {
+    async (
+      _prev: { error?: string; success?: string } | undefined,
+      formData: FormData
+    ) => {
       return await register(formData);
     },
     undefined
@@ -70,6 +73,11 @@ export function RegisterForm({ inviteToken }: { inviteToken?: string | null }) {
       {state?.error && (
         <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {state.error}
+        </p>
+      )}
+      {state?.success && (
+        <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
+          {state.success}
         </p>
       )}
 

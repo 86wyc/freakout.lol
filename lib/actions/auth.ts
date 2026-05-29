@@ -2,7 +2,14 @@
 
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { signIn, signOut } from "@/lib/auth";
+import { auth, signIn, signOut } from "@/lib/auth";
+import {
+  clearEmailChangeVerificationToken,
+  createEmailChangeVerificationToken,
+  createEmailVerificationToken,
+  sendEmailChangeVerification,
+  sendEmailVerification,
+} from "@/lib/email-verification";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 const PASSWORD_HASH_COST = 14;
@@ -13,6 +20,14 @@ const AUTH_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1_000;
 
 const PASSWORD_REQUIREMENTS_MESSAGE =
   "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.";
+const EMAIL_VERIFICATION_REQUIRED_MESSAGE =
+  "Verify your email before signing in. Check your inbox for the verification link.";
+const UNAUTHORIZED_MESSAGE = "Sign in to update your account.";
+
+type AuthActionResult = {
+  error?: string;
+  success?: string;
+};
 
 function normalizeEmail(input: string): string {
   return input.trim().toLowerCase();
@@ -80,33 +95,46 @@ export async function register(formData: FormData) {
 
   const hashedPassword = await bcrypt.hash(password, PASSWORD_HASH_COST);
 
-  await db.user.create({
-    data: {
+  let userCreated = false;
+  try {
+    await db.user.create({
+      data: {
+        email,
+        name,
+        password: hashedPassword,
+        locale: "en",
+        notificationPreferences: { email: emailOptIn },
+      },
+    });
+    userCreated = true;
+
+    const verificationToken = await createEmailVerificationToken(email);
+    await sendEmailVerification({
       email,
       name,
-      password: hashedPassword,
-      locale: "en",
-      notificationPreferences: { email: emailOptIn },
-    },
-  });
-
-  // If the user registered via an invitation link, accept it immediately
-  if (inviteToken) {
-    const { InvitationModel } = await import("@/lib/models/InvitationModel");
-    const newUser = await db.user.findUnique({ where: { email }, select: { id: true } });
-    if (newUser) {
-      await InvitationModel.accept(inviteToken, newUser.id).catch(() => {
-        // Best-effort — don't block registration if invite acceptance fails
-      });
+      token: verificationToken,
+      inviteToken,
+    });
+  } catch (error) {
+    if (userCreated) {
+      try {
+        await db.verificationToken.deleteMany({ where: { identifier: email } });
+      } catch {
+        // Best-effort cleanup after a failed registration email.
+      }
+      try {
+        await db.user.delete({ where: { email } });
+      } catch {
+        // Best-effort cleanup after a failed registration email.
+      }
     }
+    throw error;
   }
 
-  // Auto sign-in after registration
-  await signIn("credentials", {
-    email,
-    password,
-    redirectTo: inviteToken ? "/dashboard" : "/dashboard",
-  });
+  return {
+    success:
+      "Account created. Check your email to verify your address before signing in.",
+  };
 }
 
 export async function login(formData: FormData) {
@@ -129,6 +157,17 @@ export async function login(formData: FormData) {
     };
   }
 
+  const user = await db.user.findUnique({
+    where: { email },
+    select: { password: true, emailVerified: true },
+  });
+  if (user?.password && !user.emailVerified) {
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (passwordMatch) {
+      return { error: EMAIL_VERIFICATION_REQUIRED_MESSAGE };
+    }
+  }
+
   try {
     await signIn("credentials", {
       email,
@@ -147,6 +186,145 @@ export async function login(formData: FormData) {
     }
     return { error: "Invalid email or password" };
   }
+}
+
+export async function requestEmailChange(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: UNAUTHORIZED_MESSAGE };
+  }
+
+  const newEmail = normalizeEmail((formData.get("newEmail") as string) ?? "");
+  const currentPassword = (formData.get("currentPassword") as string) ?? "";
+
+  if (!newEmail) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      password: true,
+    },
+  });
+
+  if (!user) {
+    return { error: UNAUTHORIZED_MESSAGE };
+  }
+
+  if (newEmail === normalizeEmail(user.email)) {
+    return { error: "Enter a different email address." };
+  }
+
+  const existingUser = await db.user.findUnique({
+    where: { email: newEmail },
+    select: { id: true },
+  });
+  if (existingUser && existingUser.id !== user.id) {
+    return { error: "An account with this email already exists." };
+  }
+
+  if (user.password) {
+    if (!currentPassword) {
+      return { error: "Enter your current password." };
+    }
+
+    const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+    if (!passwordMatches) {
+      return { error: "Current password is incorrect." };
+    }
+  }
+
+  const verificationToken = await createEmailChangeVerificationToken({
+    userId: user.id,
+    email: newEmail,
+  });
+
+  try {
+    await sendEmailChangeVerification({
+      email: newEmail,
+      currentEmail: user.email,
+      name: user.name,
+      token: verificationToken,
+    });
+  } catch (error) {
+    await clearEmailChangeVerificationToken({
+      userId: user.id,
+      email: newEmail,
+    }).catch(() => undefined);
+    throw error;
+  }
+
+  return {
+    success:
+      "Check your new inbox to confirm this email change. Your current email stays active until then.",
+  };
+}
+
+export async function requestEmailChangeWithState(
+  _previousState: AuthActionResult | undefined,
+  formData: FormData
+): Promise<AuthActionResult> {
+  return requestEmailChange(formData);
+}
+
+export async function changePassword(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: UNAUTHORIZED_MESSAGE };
+  }
+
+  const currentPassword = (formData.get("currentPassword") as string) ?? "";
+  const newPassword = (formData.get("newPassword") as string) ?? "";
+  const confirmPassword = (formData.get("confirmPassword") as string) ?? "";
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return { error: "Current password, new password, and confirmation are required." };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return { error: "New password and confirmation do not match." };
+  }
+
+  const passwordValidation = validatePasswordStrength(newPassword);
+  if (!passwordValidation.valid) {
+    return { error: passwordValidation.message };
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { password: true },
+  });
+
+  if (!user?.password) {
+    return { error: "Password sign-in is not available for this account." };
+  }
+
+  const currentPasswordMatches = await bcrypt.compare(
+    currentPassword,
+    user.password
+  );
+  if (!currentPasswordMatches) {
+    return { error: "Current password is incorrect." };
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, PASSWORD_HASH_COST);
+  await db.user.update({
+    where: { id: session.user.id },
+    data: { password: hashedPassword },
+  });
+
+  return { success: "Password updated." };
+}
+
+export async function changePasswordWithState(
+  _previousState: AuthActionResult | undefined,
+  formData: FormData
+): Promise<AuthActionResult> {
+  return changePassword(formData);
 }
 
 export async function oauthSignIn(provider: string) {

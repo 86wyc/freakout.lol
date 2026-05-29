@@ -2,10 +2,13 @@ import {
   LuBuilding2,
   LuClipboardList,
   LuContact,
+  LuShield,
   LuUsers,
 } from "react-icons/lu";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
+import { AccountSecurityForms } from "./AccountSecurityForms";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
   addFirmMemberByEmail,
   getActiveFirmSummary,
@@ -33,11 +36,17 @@ const MANAGEABLE_ROLES = [
 export default async function AccountSettingsPage() {
   const { labels } = getLabelsForLocale("en");
   const session = await auth();
-  const [firm, members, auditLogs, pendingInvites] = await Promise.all([
+  const [firm, members, auditLogs, pendingInvites, accountUser] = await Promise.all([
     getActiveFirmSummary(),
     listFirmMembers(),
     listFirmAuditLogs(),
     listPendingInvitations(),
+    session?.user?.id
+      ? db.user.findUnique({
+          where: { id: session.user.id },
+          select: { email: true, name: true, password: true },
+        })
+      : Promise.resolve(null),
   ]);
   const t = labels.app.settings;
   const canManageMembers =
@@ -75,7 +84,7 @@ export default async function AccountSettingsPage() {
               {t.contactNameLabel}
             </dt>
             <dd className="mt-1 font-medium text-foreground">
-              {session?.user?.name ?? "-"}
+              {accountUser?.name ?? session?.user?.name ?? "-"}
             </dd>
           </div>
           <div>
@@ -83,7 +92,7 @@ export default async function AccountSettingsPage() {
               {t.contactEmailLabel}
             </dt>
             <dd className="mt-1 break-words font-medium text-foreground">
-              {session?.user?.email ?? "-"}
+              {accountUser?.email ?? session?.user?.email ?? "-"}
             </dd>
           </div>
           <div>
@@ -95,6 +104,19 @@ export default async function AccountSettingsPage() {
             </dd>
           </div>
         </dl>
+      </section>
+
+      <section className="mb-8">
+        <SettingsSectionHeader
+          icon={<LuShield className="h-4 w-4" aria-hidden="true" />}
+          title={t.securityHeading}
+          description={t.securityDescription}
+        />
+        <AccountSecurityForms
+          currentEmail={accountUser?.email ?? session?.user?.email ?? ""}
+          labels={t}
+          requiresCurrentPassword={Boolean(accountUser?.password)}
+        />
       </section>
 
       <section className="mb-8">

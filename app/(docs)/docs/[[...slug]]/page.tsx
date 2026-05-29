@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DocsShell } from "@/components/docs/DocsShell";
 import { getLabelsForLocale } from "@/labels";
 import { getAllDocs, getDocBySlug } from "@/lib/docs";
-import { DocsShell } from "../DocsShell";
 
 type DocsPageProps = {
   params: Promise<{ slug?: string[] }>;

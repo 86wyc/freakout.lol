@@ -1,20 +1,26 @@
 import Link from "next/link";
 import { LuBookOpen, LuChevronRight, LuFileText, LuFolderOpen } from "react-icons/lu";
-import type { AppLabels } from "@/labels/types";
+import type { DocsLabels } from "@/labels/types";
 import type { DocEntry } from "@/lib/docs";
 import { DocsMarkdown } from "./DocsMarkdown";
 
 type DocsShellProps = {
   docs: DocEntry[];
   currentDoc: DocEntry | null;
-  labels: AppLabels["docs"];
+  labels: DocsLabels;
+  rootHref?: string;
 };
 
 function isActiveDoc(currentDoc: DocEntry | null, doc: DocEntry): boolean {
   return currentDoc?.href === doc.href;
 }
 
-export function DocsShell({ docs, currentDoc, labels }: DocsShellProps) {
+export function DocsShell({
+  docs,
+  currentDoc,
+  labels,
+  rootHref = "/docs",
+}: DocsShellProps) {
   return (
     <div className="min-h-[calc(100vh-8rem)] bg-background">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:flex-row lg:gap-10 lg:py-10">
@@ -74,7 +80,7 @@ export function DocsShell({ docs, currentDoc, labels }: DocsShellProps) {
             <article className="overflow-hidden rounded-3xl border border-divider bg-content1 shadow-sm">
               <div className="border-b border-divider px-6 py-5 sm:px-8">
                 <Link
-                  href="/docs"
+                  href={rootHref}
                   className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-opacity hover:opacity-80"
                 >
                   <LuBookOpen aria-hidden="true" className="size-4" />

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { mockDb } from "../../mocks/db";
 
 // Mock child components used by pages
 vi.mock("@/components/auth/LoginForm", () => ({
@@ -92,6 +93,12 @@ vi.mock("@/lib/actions/project", () => ({
   createProject: vi.fn(),
   startProjectDueDiligence: vi.fn(),
   retryProjectDueDiligence: vi.fn(),
+}));
+vi.mock("@/lib/actions/auth", () => ({
+  changePassword: vi.fn(),
+  changePasswordWithState: vi.fn(),
+  requestEmailChange: vi.fn(),
+  requestEmailChangeWithState: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/graph", () => ({
@@ -373,6 +380,25 @@ vi.mock("@/labels", () => ({
           contactNameLabel: "Name",
           contactEmailLabel: "Email",
           contactLocaleLabel: "Locale",
+          securityHeading: "Account security",
+          securityDescription: "Update your sign-in email and password.",
+          changeEmailHeading: "Change email",
+          changeEmailDescription:
+            "Confirm a new address before it replaces your current sign-in email.",
+          currentEmailLabel: "Current email",
+          newEmailLabel: "New email",
+          currentPasswordLabel: "Current password",
+          requestEmailChangeCta: "Send confirmation",
+          requestEmailChangePendingCta: "Sending...",
+          changePasswordHeading: "Change password",
+          changePasswordDescription:
+            "Choose a strong password for credentials sign-in.",
+          newPasswordLabel: "New password",
+          confirmPasswordLabel: "Confirm password",
+          changePasswordCta: "Update password",
+          changePasswordPendingCta: "Updating...",
+          passwordUnavailableMessage:
+            "Password sign-in is not available for this account.",
           firmHeading: "Firm workspace",
           firmDescription:
             "Your active firm controls project access, billing, graph workflows, and role-based permissions.",
@@ -630,6 +656,19 @@ describe("Settings pages", () => {
   });
 
   it("renders account and firm settings", async () => {
+    mockAuth.mockResolvedValue({
+      user: {
+        id: "user-1",
+        email: "owner@example.com",
+        name: "Owner User",
+        locale: "en",
+      },
+    });
+    mockDb.user.findUnique.mockResolvedValue({
+      email: "owner@example.com",
+      name: "Owner User",
+      password: "hashed_password",
+    });
     const { default: AccountSettingsPage } = await import(
       "@/app/(app)/settings/account/page"
     );
@@ -639,6 +678,15 @@ describe("Settings pages", () => {
       screen.getByRole("heading", { name: "Account & firm" })
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("heading", { name: "Account security" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Change email" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Change password" })
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("heading", { name: "Firm workspace" })
     ).toBeInTheDocument();
     expect(screen.getByText("Default Firm")).toBeInTheDocument();
@@ -646,7 +694,7 @@ describe("Settings pages", () => {
     expect(
       screen.getByRole("heading", { name: "Members" })
     ).toBeInTheDocument();
-    expect(screen.getByText("owner@example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("owner@example.com").length).toBeGreaterThan(0);
     expect(
       screen.getByRole("heading", { name: "Audit log" })
     ).toBeInTheDocument();

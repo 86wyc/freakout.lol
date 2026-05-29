@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { register } from "@/lib/actions/auth";
 
 vi.mock("@/lib/actions/auth", () => ({
   register: vi.fn(),
@@ -56,6 +57,26 @@ describe("RegisterForm", () => {
     expect(passwordInput).toHaveAttribute("type", "text");
     expect(
       screen.getByRole("button", { name: "Hide password" })
+    ).toBeInTheDocument();
+  });
+
+  it("renders registration success feedback", async () => {
+    vi.mocked(register).mockResolvedValue({
+      success:
+        "Account created. Check your email to verify your address before signing in.",
+    });
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Email"), "test@example.com");
+    await user.type(screen.getByLabelText("Password"), "Password123!");
+    await user.click(screen.getByLabelText(/Terms of Service/i));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      await screen.findByText(
+        "Account created. Check your email to verify your address before signing in."
+      )
     ).toBeInTheDocument();
   });
 });
