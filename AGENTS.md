@@ -247,6 +247,38 @@ import { asArray, asString, asNumber, asNullableString, asStringArray, asRecord 
 - If you need a new coercion helper, add it to `lib/utils/coerce.ts` so the whole codebase benefits.
 - `lib/diligence/stage-helpers.ts` re-exports these for backward compatibility — new code should import directly from `@/lib/utils/coerce`.
 
+## Normalisation & Formatting Utilities — `lib/utils/email.ts`, `lib/utils/json.ts`
+
+Common normalisation and formatting helpers live in `lib/utils/`. **Never redefine these inline** — import from the shared module.
+
+### Email — `lib/utils/email.ts`
+
+```ts
+import { normalizeEmail, isValidEmail } from "@/lib/utils/email";
+```
+
+| Function                | Purpose                                                   |
+| ----------------------- | --------------------------------------------------------- |
+| `normalizeEmail(input)` | Trims and lowercases an email. Accepts `string            | null | undefined`, returns `string`. |
+| `isValidEmail(input)`   | Basic structural email validation (not a full RFC check). |
+
+### JSON — `lib/utils/json.ts`
+
+```ts
+import { parseJsonWithControlCharacterRepair } from "@/lib/utils/json";
+```
+
+| Function                                        | Purpose                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `parseJsonWithControlCharacterRepair<T>(input)` | Parses JSON, auto-repairing unescaped control characters in string values (common in LLM output). |
+
+### Rules
+
+- **Never define a local `normalizeEmail` or `trim().toLowerCase()` for emails** — import from `@/lib/utils/email`.
+- **Never use raw `JSON.parse` on LLM output** — use `parseJsonWithControlCharacterRepair` from `@/lib/utils/json`.
+- If you need a new normalisation or formatting helper (e.g., phone numbers, URLs, slugs), add it to an appropriate file in `lib/utils/` so the whole codebase benefits. Don't scatter one-off helpers in action files or components.
+- Domain-specific normalisers (e.g., diligence classification types, stage names) belong in their domain module (`lib/diligence/stage-helpers.ts`), not in `lib/utils/`.
+
 ---
 
 # Testing

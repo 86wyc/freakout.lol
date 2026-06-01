@@ -14,6 +14,7 @@ import {
   deletePasswordResetToken,
   getPasswordResetTokenStatus,
 } from "@/lib/password-reset";
+import { normalizeEmail } from "@/lib/utils/email";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 const PASSWORD_HASH_COST = 14;
@@ -32,10 +33,6 @@ type AuthActionResult = {
   error?: string;
   success?: string;
 };
-
-function normalizeEmail(input: string): string {
-  return input.trim().toLowerCase();
-}
 
 function validatePasswordStrength(password: string): { valid: boolean; message: string } {
   if (password.length < PASSWORD_MIN_LENGTH) {
@@ -57,7 +54,7 @@ function validatePasswordStrength(password: string): { valid: boolean; message: 
 }
 
 export async function register(formData: FormData) {
-  const email = normalizeEmail((formData.get("email") as string) ?? "");
+  const email = normalizeEmail(formData.get("email") as string | null);
   const password = formData.get("password") as string;
   const name = ((formData.get("name") as string | null) ?? "").trim() || null;
   const acceptedTerms = formData.get("acceptedTerms") === "on";
@@ -142,7 +139,7 @@ export async function register(formData: FormData) {
 }
 
 export async function login(formData: FormData) {
-  const email = normalizeEmail((formData.get("email") as string) ?? "");
+  const email = normalizeEmail(formData.get("email") as string | null);
   const password = formData.get("password") as string;
 
   if (!email || !password) {
@@ -198,7 +195,7 @@ export async function requestEmailChange(formData: FormData) {
     return { error: UNAUTHORIZED_MESSAGE };
   }
 
-  const newEmail = normalizeEmail((formData.get("newEmail") as string) ?? "");
+  const newEmail = normalizeEmail(formData.get("newEmail") as string | null);
   const currentPassword = (formData.get("currentPassword") as string) ?? "";
 
   if (!newEmail) {

@@ -18,6 +18,7 @@ import {
   getActiveFirmIdFromCookie,
   setActiveFirmCookie,
 } from "@/lib/active-firm";
+import { normalizeEmail } from "@/lib/utils/email";
 
 export type ActiveFirmSummary = {
   id: string;
@@ -157,7 +158,7 @@ export async function addFirmMemberByEmail(
   }
 
   const emailEntry = formData.get("email");
-  const email = typeof emailEntry === "string" ? emailEntry.trim().toLowerCase() : "";
+  const email = normalizeEmail(typeof emailEntry === "string" ? emailEntry : null);
   const role = parseManageableRole(formData.get("role"));
 
   if (!email || !role) {
