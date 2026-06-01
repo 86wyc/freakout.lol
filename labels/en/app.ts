@@ -300,7 +300,7 @@ export const appLabels: AppLabels["app"] = {
         GOOGLE: {
           name: "Google AI",
           description: "Gemini 2.5 Pro and Flash",
-          placeholder: "AIzaSy...",
+          placeholder: "Google API key",
         },
         DEEPSEEK: {
           name: "DeepSeek",

@@ -125,13 +125,7 @@ function validateKeyFormat(provider: ApiKeyProvider, key: string): string | null
       return null;
 
     case "GOOGLE":
-      // Google AI keys start with "AIzaSy"
-      if (!key.startsWith("AIzaSy")) {
-        return "Google AI keys must start with \"AIzaSy\". Check that you copied the full key.";
-      }
-      if (key.length < 30) {
-        return "This Google AI key looks too short. Keys are typically 39 characters.";
-      }
+      // Google key formats are not stable enough for local prefix validation.
       return null;
 
     case "DEEPSEEK":

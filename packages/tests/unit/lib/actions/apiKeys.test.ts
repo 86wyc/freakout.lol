@@ -217,6 +217,21 @@ describe("upsertApiKey", () => {
     mockEncryptApiKey.mockImplementation((value: string) => `encrypted:${value}`);
   });
 
+  it("accepts Google keys without the legacy AIzaSy prefix", async () => {
+    const result = await upsertApiKey("GOOGLE", "google-key-with-new-format");
+
+    expect(result).toEqual({});
+    expect(mockEncryptApiKey).toHaveBeenCalledWith("google-key-with-new-format");
+    expect(mockUserApiKeyUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          provider: "GOOGLE",
+          encryptedKey: "encrypted:google-key-with-new-format",
+        }),
+      })
+    );
+  });
+
   it("extracts a DeepSeek key from JSON before storing it", async () => {
     const result = await upsertApiKey(
       "DEEPSEEK",
