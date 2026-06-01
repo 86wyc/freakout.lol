@@ -28,6 +28,75 @@ export type ApiKeyStatus = {
 };
 
 const PROVIDERS = MODEL_PROVIDER_ORDER;
+const API_KEY_JSON_FIELDS = [
+  "apiKey",
+  "api_key",
+  "key",
+  "token",
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "GOOGLE_API_KEY",
+  "DEEPSEEK_API_KEY",
+];
+
+function stripWrappingQuotes(input: string): string {
+  if (input.length < 2) {
+    return input;
+  }
+
+  const first = input[0];
+  const last = input[input.length - 1];
+  if ((first === "\"" && last === "\"") || (first === "'" && last === "'")) {
+    return input.slice(1, -1).trim();
+  }
+
+  return input;
+}
+
+function extractApiKeyFromJson(input: string): string | null {
+  if (!input.startsWith("{") || !input.endsWith("}")) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(input) as Record<string, unknown>;
+    for (const field of API_KEY_JSON_FIELDS) {
+      const value = parsed[field];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function normalizeApiKeyInput(
+  provider: ApiKeyProvider,
+  rawCredential: string
+): string {
+  if (provider === "LOCAL") {
+    return rawCredential.trim();
+  }
+
+  let credential = rawCredential.trim();
+  const jsonCredential = extractApiKeyFromJson(credential);
+  if (jsonCredential) {
+    credential = jsonCredential;
+  }
+
+  const envAssignment = credential.match(
+    /^(?:export\s+)?[A-Z0-9_]*API[_-]?KEY\s*=\s*(.+)$/i
+  );
+  if (envAssignment?.[1]) {
+    credential = envAssignment[1].trim();
+  }
+
+  credential = credential.replace(/^Bearer\s+/i, "").trim();
+  return stripWrappingQuotes(credential);
+}
 
 /**
  * Validates the format/prefix of an API key for a given provider.
@@ -66,6 +135,9 @@ function validateKeyFormat(provider: ApiKeyProvider, key: string): string | null
       return null;
 
     case "DEEPSEEK":
+      if (key.includes("{") || key.includes("}") || key.includes("\"")) {
+        return "Paste the raw DeepSeek API key, not a JSON object or quoted value.";
+      }
       if (key.length < 20) {
         return "This DeepSeek API key looks too short.";
       }
@@ -195,7 +267,7 @@ export async function validateApiKey(
   if (!session?.user?.id) return { error: "Not authenticated" };
   if (!PROVIDERS.includes(provider)) return { error: "Invalid provider" };
 
-  const trimmed = rawKey.trim();
+  const trimmed = normalizeApiKeyInput(provider, rawKey);
   if (!trimmed) return { error: "API key cannot be empty" };
 
   // Provider-specific format validation before making a network call
@@ -242,7 +314,7 @@ export async function upsertApiKey(
 
   if (!PROVIDERS.includes(provider)) return { error: "Invalid provider" };
 
-  const trimmed = rawKey.trim();
+  const trimmed = normalizeApiKeyInput(provider, rawKey);
   if (!trimmed) return { error: "API key cannot be empty" };
   if (trimmed.length < 8) return { error: "API key is too short" };
 

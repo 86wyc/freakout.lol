@@ -7,20 +7,22 @@ vi.mock("@/lib/auth", () => ({
 
 const mockListForUser = vi.fn();
 const mockDecryptApiKey = vi.fn();
+const mockEncryptApiKey = vi.fn();
 vi.mock("@/lib/models/UserApiKeyModel", () => ({
   UserApiKeyModel: {
     listForUser: mockListForUser,
     findForUser: vi.fn(),
     findByIdForUser: vi.fn(),
     decryptApiKey: mockDecryptApiKey,
-    encryptApiKey: vi.fn(),
+    encryptApiKey: mockEncryptApiKey,
   },
 }));
 
+const mockUserApiKeyUpsert = vi.fn();
 vi.mock("@/lib/db", () => ({
   db: {
     userApiKey: {
-      upsert: vi.fn(),
+      upsert: mockUserApiKeyUpsert,
       deleteMany: vi.fn(),
       updateMany: vi.fn(),
     },
@@ -59,7 +61,9 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-const { getApiKeyStatuses } = await import("@/lib/actions/apiKeys");
+const { getApiKeyStatuses, upsertApiKey } = await import(
+  "@/lib/actions/apiKeys"
+);
 
 describe("getApiKeyStatuses", () => {
   beforeEach(() => {
@@ -203,5 +207,56 @@ describe("getApiKeyStatuses", () => {
       enabled: true,
       lastValidatedAt: null,
     });
+  });
+});
+
+describe("upsertApiKey", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockEncryptApiKey.mockImplementation((value: string) => `encrypted:${value}`);
+  });
+
+  it("extracts a DeepSeek key from JSON before storing it", async () => {
+    const result = await upsertApiKey(
+      "DEEPSEEK",
+      JSON.stringify({ api_key: "deepseek-test-key-00000002" })
+    );
+
+    expect(result).toEqual({});
+    expect(mockEncryptApiKey).toHaveBeenCalledWith("deepseek-test-key-00000002");
+    expect(mockUserApiKeyUpsert).toHaveBeenCalledWith({
+      where: { userId_provider: { userId: "user-1", provider: "DEEPSEEK" } },
+      create: {
+        userId: "user-1",
+        provider: "DEEPSEEK",
+        encryptedKey: "encrypted:deepseek-test-key-00000002",
+        keyHint: "0002",
+        defaultModel: "deepseek-v4-flash",
+        enabled: true,
+        lastValidatedAt: null,
+        validationError: null,
+      },
+      update: {
+        encryptedKey: "encrypted:deepseek-test-key-00000002",
+        keyHint: "0002",
+        defaultModel: "deepseek-v4-flash",
+        enabled: true,
+        lastValidatedAt: undefined,
+        validationError: null,
+      },
+    });
+  });
+
+  it("rejects wrapped DeepSeek input when no key field can be extracted", async () => {
+    const result = await upsertApiKey(
+      "DEEPSEEK",
+      JSON.stringify({ value: "deepseek-test-key-00000002" })
+    );
+
+    expect(result).toEqual({
+      error: "Paste the raw DeepSeek API key, not a JSON object or quoted value.",
+    });
+    expect(mockUserApiKeyUpsert).not.toHaveBeenCalled();
   });
 });
