@@ -7,6 +7,7 @@ import {
   type UsageMetadata,
 } from "@/lib/diligence/model-provider";
 import { LlmOutputParseError } from "@/lib/diligence/errors";
+import { parseJsonWithControlCharacterRepair } from "@/lib/utils/json";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import type { ZodType } from "zod";
@@ -163,7 +164,7 @@ function parseAndValidate<T>(
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(candidate);
+    parsed = parseJsonWithControlCharacterRepair(candidate);
   } catch (error) {
     const detail = error instanceof Error ? error.message : "unknown error";
     throw new LlmOutputParseError(

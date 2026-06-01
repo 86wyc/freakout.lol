@@ -29,8 +29,14 @@ vi.mock("@/lib/email", () => ({
 }));
 
 // Import after mocks are set up
-const { register, login, logout, requestEmailChange, changePassword } =
-  await import("@/lib/actions/auth");
+const {
+  changePassword,
+  login,
+  logout,
+  register,
+  requestEmailChange,
+  resetPasswordWithToken,
+} = await import("@/lib/actions/auth");
 
 function createFormData(data: Record<string, string>): FormData {
   const formData = new FormData();
@@ -513,6 +519,74 @@ describe("changePassword", () => {
       data: { password: "hashed_password" },
     });
     expect(result).toEqual({ success: "Password updated." });
+  });
+});
+
+describe("resetPasswordWithToken", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects missing reset link data", async () => {
+    const result = await resetPasswordWithToken(
+      createFormData({
+        newPassword: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      })
+    );
+
+    expect(result).toEqual({
+      error: "Password reset link is missing or invalid.",
+    });
+    expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects expired reset tokens", async () => {
+    mockDb.verificationToken.findUnique.mockResolvedValue({
+      identifier: "password-reset:user-1",
+      token: "hashed-token",
+      expires: new Date(Date.now() - 60_000),
+    });
+
+    const result = await resetPasswordWithToken(
+      createFormData({
+        userId: "user-1",
+        token: "raw-token",
+        newPassword: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      })
+    );
+
+    expect(result).toEqual({ error: "Password reset link has expired." });
+    expect(mockDb.verificationToken.delete).toHaveBeenCalled();
+    expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
+
+  it("updates the password and consumes a valid reset token", async () => {
+    mockDb.verificationToken.findUnique.mockResolvedValue({
+      identifier: "password-reset:user-1",
+      token: "hashed-token",
+      expires: new Date(Date.now() + 60_000),
+    });
+    mockDb.user.findUnique.mockResolvedValue({ id: "user-1" });
+
+    const result = await resetPasswordWithToken(
+      createFormData({
+        userId: "user-1",
+        token: "raw-token",
+        newPassword: "NewPassword123!",
+        confirmPassword: "NewPassword123!",
+      })
+    );
+
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { password: "hashed_password" },
+    });
+    expect(mockDb.verificationToken.delete).toHaveBeenCalled();
+    expect(result).toEqual({
+      success: "Password reset. You can sign in with your new password.",
+    });
   });
 });
 

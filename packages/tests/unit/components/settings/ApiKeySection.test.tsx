@@ -17,6 +17,7 @@ describe("ApiKeySection", () => {
       OPENAI: { name: "OpenAI", description: "OpenAI", placeholder: "sk-..." },
       ANTHROPIC: { name: "Anthropic", description: "Anthropic", placeholder: "sk-ant-..." },
       GOOGLE: { name: "Google", description: "Google", placeholder: "AIzaSy..." },
+      DEEPSEEK: { name: "DeepSeek", description: "DeepSeek", placeholder: "DeepSeek API key" },
       LOCAL: { name: "Local LLM", description: "Local", placeholder: "http://localhost:11434/v1" },
     },
     connectedStatus: "Connected",
@@ -74,6 +75,16 @@ describe("ApiKeySection", () => {
     },
     {
       id: null,
+      provider: "DEEPSEEK" as const,
+      isSet: false,
+      hint: null,
+      connectorUrl: null,
+      defaultModel: "deepseek-v4-flash",
+      enabled: false,
+      lastValidatedAt: null,
+    },
+    {
+      id: null,
       provider: "LOCAL" as const,
       isSet: false,
       hint: null,
@@ -90,6 +101,7 @@ describe("ApiKeySection", () => {
     expect(screen.getByTestId("api-key-card-OPENAI")).toBeInTheDocument();
     expect(screen.getByTestId("api-key-card-ANTHROPIC")).toBeInTheDocument();
     expect(screen.getByTestId("api-key-card-GOOGLE")).toBeInTheDocument();
+    expect(screen.getByTestId("api-key-card-DEEPSEEK")).toBeInTheDocument();
     expect(screen.getByTestId("api-key-card-LOCAL")).toBeInTheDocument();
   });
 
@@ -97,7 +109,7 @@ describe("ApiKeySection", () => {
     render(<ApiKeySection initial={mockStatuses} labels={labels} />);
 
     const cards = screen.getAllByTestId(/^api-key-card-/);
-    expect(cards).toHaveLength(4);
+    expect(cards).toHaveLength(5);
   });
 
   it("renders with empty initial array", () => {

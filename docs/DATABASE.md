@@ -70,7 +70,7 @@ Key points:
 From `prisma/models/api-key.prisma`:
 
 - `UserApiKey`
-- enum `ApiKeyProvider` (`OPENAI`, `ANTHROPIC`, `GOOGLE`)
+- enum `ApiKeyProvider` (`OPENAI`, `ANTHROPIC`, `GOOGLE`, `DEEPSEEK`, `LOCAL`)
 
 Key points:
 - One key per provider per user via `@@unique([userId, provider])`.

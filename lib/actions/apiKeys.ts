@@ -65,6 +65,12 @@ function validateKeyFormat(provider: ApiKeyProvider, key: string): string | null
       }
       return null;
 
+    case "DEEPSEEK":
+      if (key.length < 20) {
+        return "This DeepSeek API key looks too short.";
+      }
+      return null;
+
     case "LOCAL":
       if (!parseLocalLlmConnectorConfig(key)) {
         return "Enter a valid HTTP(S) OpenAI-compatible local LLM endpoint URL.";

@@ -51,6 +51,24 @@ export const enLabels: AppLabels = {
       settingsCta: "Back to settings",
       registerCta: "Create account",
     },
+    resetPassword: {
+      heading: "Reset password",
+      description: "Choose a new password for this account.",
+      newPasswordLabel: "New password",
+      confirmPasswordLabel: "Confirm new password",
+      submitCta: "Reset password",
+      pendingCta: "Resetting...",
+      signInCta: "Sign in",
+      missingHeading: "Reset link missing",
+      missingDescription:
+        "Open the password reset link from your email to choose a new password.",
+      invalidHeading: "Reset link unavailable",
+      invalidDescription:
+        "This password reset link is invalid or has already been used.",
+      expiredHeading: "Reset link expired",
+      expiredDescription:
+        "This password reset link is no longer valid. Ask an administrator for a new one.",
+    },
   },
   app: appLabels,
 };

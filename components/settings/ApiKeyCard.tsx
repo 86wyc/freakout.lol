@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { SiAnthropic, SiGoogle, SiOpenai } from "react-icons/si";
-import { LuServer } from "react-icons/lu";
+import { LuBrainCircuit, LuServer } from "react-icons/lu";
 import { FiAlertCircle, FiEdit2, FiLoader, FiTrash2, FiX } from "react-icons/fi";
 import {
   deleteApiKey,
@@ -69,6 +69,11 @@ const PROVIDER_META: Record<ApiKeyProvider, ProviderMeta> = {
     Icon: SiGoogle,
     iconColor: "text-primary",
     iconBg: "bg-primary/10",
+  },
+  DEEPSEEK: {
+    Icon: LuBrainCircuit,
+    iconColor: "text-success",
+    iconBg: "bg-success/10",
   },
   LOCAL: {
     Icon: LuServer,

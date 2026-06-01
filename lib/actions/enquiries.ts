@@ -11,6 +11,7 @@ import {
 import { ProjectModel } from "@/lib/models/ProjectModel";
 import { UserApiKeyModel } from "@/lib/models/UserApiKeyModel";
 import { asArray, asRecord, asString } from "@/lib/utils/coerce";
+import { parseJsonWithControlCharacterRepair } from "@/lib/utils/json";
 
 const MAX_QUESTION_LENGTH = 1_200;
 const MAX_HISTORY_ITEMS = 8;
@@ -639,7 +640,8 @@ function parseEnquiryResponse(raw: string): ParsedEnquiryResponse | null {
     return null;
   }
   try {
-    const parsed = JSON.parse(candidate) as Record<string, unknown>;
+    const parsed =
+      parseJsonWithControlCharacterRepair<Record<string, unknown>>(candidate);
     const answer = asString(parsed.answer).trim();
     const citations = asArray(parsed.citations)
       .map((value) => asString(value).trim())

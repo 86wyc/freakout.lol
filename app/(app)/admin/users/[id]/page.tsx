@@ -5,6 +5,7 @@ import { getLabelsForLocale } from "@/labels";
 import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/authz/platform-admin";
 import { db } from "@/lib/db";
+import { AdminUserDetailControls } from "./AdminUserDetailControls";
 
 export const metadata = {
   title: "User | Freakout.lol",
@@ -96,6 +97,17 @@ export default async function AdminUserDetailPage({ params }: Props) {
           </p>
         </div>
       </div>
+
+      <AdminUserDetailControls
+        labels={t}
+        user={{
+          id: user.id,
+          email: user.email,
+          systemRole: user.systemRole,
+          emailVerified: Boolean(user.emailVerified),
+        }}
+        isCurrentUser={user.id === session.user.id}
+      />
 
       <section className="mb-8 rounded-lg border border-divider bg-content1 p-4">
         <h2 className="sr-only">{t.userDetailHeading}</h2>

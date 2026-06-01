@@ -10,6 +10,10 @@ import {
   sendEmailChangeVerification,
   sendEmailVerification,
 } from "@/lib/email-verification";
+import {
+  deletePasswordResetToken,
+  getPasswordResetTokenStatus,
+} from "@/lib/password-reset";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 const PASSWORD_HASH_COST = 14;
@@ -325,6 +329,65 @@ export async function changePasswordWithState(
   formData: FormData
 ): Promise<AuthActionResult> {
   return changePassword(formData);
+}
+
+export async function resetPasswordWithToken(
+  formData: FormData
+): Promise<AuthActionResult> {
+  const userId = ((formData.get("userId") as string | null) ?? "").trim();
+  const token = ((formData.get("token") as string | null) ?? "").trim();
+  const newPassword = (formData.get("newPassword") as string) ?? "";
+  const confirmPassword = (formData.get("confirmPassword") as string) ?? "";
+
+  if (!userId || !token) {
+    return { error: "Password reset link is missing or invalid." };
+  }
+
+  if (!newPassword || !confirmPassword) {
+    return { error: "New password and confirmation are required." };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return { error: "New password and confirmation do not match." };
+  }
+
+  const passwordValidation = validatePasswordStrength(newPassword);
+  if (!passwordValidation.valid) {
+    return { error: passwordValidation.message };
+  }
+
+  const tokenStatus = await getPasswordResetTokenStatus({ userId, token });
+  if (tokenStatus === "expired") {
+    return { error: "Password reset link has expired." };
+  }
+  if (tokenStatus !== "valid") {
+    return { error: "Password reset link is missing or invalid." };
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!user) {
+    await deletePasswordResetToken({ userId, token }).catch(() => undefined);
+    return { error: "Password reset link is missing or invalid." };
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, PASSWORD_HASH_COST);
+  await db.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+  await deletePasswordResetToken({ userId, token });
+
+  return { success: "Password reset. You can sign in with your new password." };
+}
+
+export async function resetPasswordWithTokenState(
+  _previousState: AuthActionResult | undefined,
+  formData: FormData
+): Promise<AuthActionResult> {
+  return resetPasswordWithToken(formData);
 }
 
 export async function oauthSignIn(provider: string) {

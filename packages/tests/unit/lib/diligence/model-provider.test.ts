@@ -6,6 +6,7 @@ vi.mock("@/lib/generated/prisma/client", () => ({
     OPENAI: "OPENAI",
     ANTHROPIC: "ANTHROPIC",
     GOOGLE: "GOOGLE",
+    DEEPSEEK: "DEEPSEEK",
     LOCAL: "LOCAL",
   },
 }));
@@ -34,6 +35,7 @@ describe("ModelProviderRegistry", () => {
     expect(registry.getProvider(ApiKeyProvider.OPENAI)).toBeDefined();
     expect(registry.getProvider(ApiKeyProvider.ANTHROPIC)).toBeDefined();
     expect(registry.getProvider(ApiKeyProvider.GOOGLE)).toBeDefined();
+    expect(registry.getProvider(ApiKeyProvider.DEEPSEEK)).toBeDefined();
     expect(registry.getProvider(ApiKeyProvider.LOCAL)).toBeDefined();
   });
 
@@ -122,6 +124,33 @@ describe("ModelProviderRegistry", () => {
         model: "gemini-2.5-flash",
         temperature: 0,
         maxRetries: 2,
+      });
+    });
+  });
+
+  describe("DeepSeek provider", () => {
+    it("creates a ChatOpenAI model with the DeepSeek base URL", () => {
+      const registry = new ModelProviderRegistry();
+      const provider = registry.getProvider(ApiKeyProvider.DEEPSEEK);
+
+      provider.createChatModel({
+        provider: ApiKeyProvider.DEEPSEEK,
+        model: "deepseek-v4-flash",
+        apiKey: "deepseek-test-key",
+      });
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith({
+        apiKey: "deepseek-test-key",
+        model: "deepseek-v4-flash",
+        temperature: 0,
+        maxRetries: 2,
+        useResponsesApi: false,
+        modelKwargs: {
+          thinking: { type: "disabled" },
+        },
+        configuration: {
+          baseURL: "https://api.deepseek.com",
+        },
       });
     });
   });

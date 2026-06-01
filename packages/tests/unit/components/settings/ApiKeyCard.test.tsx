@@ -20,6 +20,7 @@ vi.mock("react-icons/si", () => ({
 }));
 
 vi.mock("react-icons/lu", () => ({
+  LuBrainCircuit: () => <span data-testid="icon-brain-circuit" />,
   LuServer: () => <span data-testid="icon-server" />,
 }));
 
@@ -51,6 +52,11 @@ describe("ApiKeyCard", () => {
         name: "Google AI",
         description: "Gemini 2.5 Pro and Flash",
         placeholder: "AIzaSy...",
+      },
+      DEEPSEEK: {
+        name: "DeepSeek",
+        description: "DeepSeek V4 Flash and Pro",
+        placeholder: "DeepSeek API key",
       },
       LOCAL: {
         name: "Local LLM",
@@ -380,6 +386,23 @@ describe("ApiKeyCard", () => {
 
     expect(screen.getByText("Google AI")).toBeInTheDocument();
     expect(screen.getByText("Gemini 2.5 Pro and Flash")).toBeInTheDocument();
+  });
+
+  it("renders DeepSeek provider correctly", () => {
+    const deepSeekInitial = {
+      ...defaultInitial,
+      provider: "DEEPSEEK" as const,
+    };
+    render(
+      <ApiKeyCard
+        initial={deepSeekInitial}
+        labels={labels}
+        onUpdate={mockOnUpdate}
+      />
+    );
+
+    expect(screen.getByText("DeepSeek")).toBeInTheDocument();
+    expect(screen.getByText("DeepSeek V4 Flash and Pro")).toBeInTheDocument();
   });
 
   it("does not call save when input is empty", () => {

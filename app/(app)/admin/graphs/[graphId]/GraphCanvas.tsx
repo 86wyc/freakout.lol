@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useTransition,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   ReactFlow,
   Background,
@@ -130,6 +137,332 @@ type Props = {
   initialRequirements: Requirement[];
 };
 
+type ToastType = "success" | "error";
+type StartTransition = ReturnType<typeof useTransition>[1];
+type ShowToast = (type: ToastType, msg: string) => void;
+
+type GraphCanvasPanelProps = {
+  graphId: string;
+  isPending: boolean;
+  startTransition: StartTransition;
+  showToast: ShowToast;
+};
+
+function AddNodePanel({
+  graphId,
+  isPending,
+  startTransition,
+  showToast,
+  setShowAddNode,
+  setSelectedNodeId,
+  setGraphNodes,
+  setNodes,
+}: GraphCanvasPanelProps & {
+  setShowAddNode: Dispatch<SetStateAction<boolean>>;
+  setSelectedNodeId: Dispatch<SetStateAction<string | null>>;
+  setGraphNodes: Dispatch<SetStateAction<GraphNode[]>>;
+  setNodes: Dispatch<SetStateAction<Node[]>>;
+}) {
+  const [label, setLabel] = useState("");
+  const [slug, setSlug] = useState("");
+  const [kind, setKind] = useState("QUESTION");
+  const [desc, setDesc] = useState("");
+
+  return (
+    <div className="absolute right-4 top-4 z-10 w-72 rounded-xl border border-divider bg-content1 p-4 shadow-lg">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-semibold text-foreground">Add node</p>
+        <button type="button" onClick={() => setShowAddNode(false)} className="text-foreground/40 hover:text-foreground">
+          <LuX className="size-4" />
+        </button>
+      </div>
+      <div className="space-y-2">
+        <input
+          value={label}
+          onChange={(e) => {
+            setLabel(e.target.value);
+            if (!slug) setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
+          }}
+          placeholder="Label"
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <input
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          placeholder="slug"
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value)}
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          {NODE_KINDS.map((k) => <option key={k} value={k}>{k.replace(/_/g, " ")}</option>)}
+        </select>
+        <textarea
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          placeholder="Description (optional)"
+          rows={2}
+          className="w-full resize-none rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <button
+          type="button"
+          disabled={!label || !slug || isPending}
+          onClick={() => {
+            startTransition(async () => {
+              const result = await addGraphNode({ graphId, slug, label, kind, description: desc || undefined });
+              if (result.error) { showToast("error", result.error); return; }
+              const graphNode: GraphNode = {
+                id: result.id!,
+                slug,
+                label,
+                kind,
+                description: desc || null,
+              };
+              const newNode: Node = {
+                id: result.id!,
+                type: "ontologyNode",
+                position: { x: Math.random() * 400, y: Math.random() * 300 },
+                data: { label, kind, description: desc || null, requirementCount: 0, onSelect: setSelectedNodeId },
+              };
+              setGraphNodes((nds) => [...nds, graphNode]);
+              setNodes((nds) => [...nds, newNode]);
+              showToast("success", "Node added");
+              setShowAddNode(false);
+            });
+          }}
+          className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          Add node
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AddEdgePanel({
+  graphId,
+  graphNodes,
+  isPending,
+  startTransition,
+  showToast,
+  setShowAddEdge,
+  setEdges,
+}: GraphCanvasPanelProps & {
+  graphNodes: GraphNode[];
+  setShowAddEdge: Dispatch<SetStateAction<boolean>>;
+  setEdges: Dispatch<SetStateAction<Edge[]>>;
+}) {
+  const [sourceId, setSourceId] = useState("");
+  const [targetId, setTargetId] = useState("");
+  const [kind, setKind] = useState("REQUIRES");
+
+  return (
+    <div className="absolute right-4 top-4 z-10 w-72 rounded-xl border border-divider bg-content1 p-4 shadow-lg">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-semibold text-foreground">Add edge</p>
+        <button type="button" onClick={() => setShowAddEdge(false)} className="text-foreground/40 hover:text-foreground">
+          <LuX className="size-4" />
+        </button>
+      </div>
+      <div className="space-y-2">
+        <select value={sourceId} onChange={(e) => setSourceId(e.target.value)}
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+          <option value="">Source node…</option>
+          {graphNodes.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
+        </select>
+        <select value={kind} onChange={(e) => setKind(e.target.value)}
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+          {EDGE_KINDS.map((k) => <option key={k} value={k}>{k.replace(/_/g, " ")}</option>)}
+        </select>
+        <select value={targetId} onChange={(e) => setTargetId(e.target.value)}
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+          <option value="">Target node…</option>
+          {graphNodes.filter((n) => n.id !== sourceId).map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
+        </select>
+        <button
+          type="button"
+          disabled={!sourceId || !targetId || isPending}
+          onClick={() => {
+            startTransition(async () => {
+              const result = await addGraphEdge({ graphId, sourceId, targetId, kind });
+              if (result.error) { showToast("error", result.error); return; }
+              const newEdge: Edge = {
+                id: result.id!,
+                source: sourceId,
+                target: targetId,
+                label: kind.replace(/_/g, " "),
+                type: "smoothstep",
+                animated: kind === "REQUIRES",
+                style: { stroke: "hsl(var(--heroui-primary))", strokeWidth: 1.5 },
+                labelStyle: { fontSize: 10 },
+              };
+              setEdges((eds) => [...eds, newEdge]);
+              showToast("success", "Edge added");
+              setShowAddEdge(false);
+            });
+          }}
+          className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          Add edge
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NodeDetailPanel({
+  graphId,
+  selectedNode,
+  selectedNodeReqs,
+  isPending,
+  startTransition,
+  showToast,
+  setSelectedNodeId,
+  setGraphNodes,
+  setNodes,
+  setEdges,
+  setRequirements,
+}: GraphCanvasPanelProps & {
+  selectedNode: GraphNode;
+  selectedNodeReqs: Requirement[];
+  setSelectedNodeId: Dispatch<SetStateAction<string | null>>;
+  setGraphNodes: Dispatch<SetStateAction<GraphNode[]>>;
+  setNodes: Dispatch<SetStateAction<Node[]>>;
+  setEdges: Dispatch<SetStateAction<Edge[]>>;
+  setRequirements: Dispatch<SetStateAction<Requirement[]>>;
+}) {
+  const [editLabel, setEditLabel] = useState(selectedNode.label);
+  const [editDesc, setEditDesc] = useState(selectedNode.description ?? "");
+  const [newReqTitle, setNewReqTitle] = useState("");
+  const [newReqPriority, setNewReqPriority] = useState("medium");
+
+  return (
+    <div className="absolute bottom-4 left-4 z-10 w-80 max-h-[60vh] overflow-y-auto rounded-xl border border-divider bg-content1 p-4 shadow-lg">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${KIND_BADGE[selectedNode.kind] ?? KIND_BADGE.ENTITY}`}>
+            {selectedNode.kind.replace(/_/g, " ")}
+          </span>
+          <p className="text-sm font-semibold text-foreground">{selectedNode.label}</p>
+        </div>
+        <button type="button" onClick={() => setSelectedNodeId(null)} className="text-foreground/40 hover:text-foreground">
+          <LuX className="size-4" />
+        </button>
+      </div>
+
+      <div className="mb-3 space-y-2">
+        <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)}
+          className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+        <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2}
+          placeholder="Description"
+          className="w-full resize-none rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+        <div className="flex gap-2">
+          <button type="button" disabled={isPending}
+            onClick={() => {
+              startTransition(async () => {
+                await updateGraphNode({ nodeId: selectedNode.id, graphId, label: editLabel, description: editDesc || undefined });
+                setGraphNodes((nds) => nds.map((n) => n.id === selectedNode.id
+                  ? { ...n, label: editLabel, description: editDesc || null }
+                  : n));
+                setNodes((nds) => nds.map((n) => n.id === selectedNode.id
+                  ? { ...n, data: { ...n.data, label: editLabel, description: editDesc || null } }
+                  : n));
+                showToast("success", "Node updated");
+              });
+            }}
+            className="flex-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:opacity-80 disabled:opacity-50">
+            Save
+          </button>
+          <button type="button" disabled={isPending}
+            onClick={() => {
+              if (!confirm("Delete this node and all its requirements?")) return;
+              startTransition(async () => {
+                await deleteGraphNode({ nodeId: selectedNode.id, graphId });
+                setGraphNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
+                setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
+                setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
+                setRequirements((rs) => rs.filter((r) => r.nodeId !== selectedNode.id));
+                setSelectedNodeId(null);
+                showToast("success", "Node deleted");
+              });
+            }}
+            className="rounded-md bg-danger/10 px-3 py-1.5 text-xs font-medium text-danger hover:opacity-80 disabled:opacity-50">
+            <LuTrash2 className="size-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/45">
+          Requirements ({selectedNodeReqs.length})
+        </p>
+        <ul className="mb-2 space-y-1">
+          {selectedNodeReqs.map((req) => (
+            <li key={req.id} className="flex items-start justify-between gap-2 rounded-md bg-content2/50 px-2.5 py-2 text-xs">
+              <div className="min-w-0">
+                <p className="font-medium text-foreground leading-snug">{req.title}</p>
+                <span className={`text-[10px] ${req.priority === "high" ? "text-danger" : req.priority === "low" ? "text-foreground/40" : "text-warning"}`}>
+                  {req.priority}
+                </span>
+              </div>
+              <button type="button" disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    await deleteGraphRequirement({ requirementId: req.id, graphId });
+                    setRequirements((rs) => rs.filter((r) => r.id !== req.id));
+                  });
+                }}
+                className="shrink-0 text-foreground/30 hover:text-danger disabled:opacity-50">
+                <LuX className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <div className="space-y-1.5">
+          <input value={newReqTitle} onChange={(e) => setNewReqTitle(e.target.value)}
+            placeholder="New requirement title"
+            className="w-full rounded-md border border-divider bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+          <div className="flex gap-1.5">
+            <select value={newReqPriority} onChange={(e) => setNewReqPriority(e.target.value)}
+              className="flex-1 rounded-md border border-divider bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <button type="button" disabled={!newReqTitle || isPending}
+              onClick={() => {
+                startTransition(async () => {
+                  const result = await addGraphRequirement({
+                    graphId,
+                    nodeId: selectedNode.id,
+                    title: newReqTitle,
+                    priority: newReqPriority,
+                  });
+                  if (result.error) { showToast("error", result.error); return; }
+                  setRequirements((rs) => [...rs, {
+                    id: result.id!,
+                    title: newReqTitle,
+                    description: null,
+                    priority: newReqPriority,
+                    nodeId: selectedNode.id,
+                  }]);
+                  setNewReqTitle("");
+                  showToast("success", "Requirement added");
+                });
+              }}
+              className="rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+              <LuPlus className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main canvas ──────────────────────────────────────────────────────────────
 
 export function GraphCanvas({
@@ -144,6 +477,7 @@ export function GraphCanvas({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAddNode, setShowAddNode] = useState(false);
   const [showAddEdge, setShowAddEdge] = useState(false);
+  const [graphNodes, setGraphNodes] = useState<GraphNode[]>(initialNodes);
 
   // Requirements state (local, synced on mutations)
   const [requirements, setRequirements] = useState<Requirement[]>(initialRequirements);
@@ -179,7 +513,7 @@ export function GraphCanvas({
     }));
   }
 
-  const rfNodesInit = buildRFNodes(initialNodes);
+  const rfNodesInit = buildRFNodes(graphNodes);
   const rfEdgesInit = buildRFEdges(initialEdges);
   const { nodes: layoutedNodes, edges: layoutedEdges } = applyDagreLayout(rfNodesInit, rfEdgesInit);
 
@@ -227,276 +561,9 @@ export function GraphCanvas({
   // ── Selected node data ─────────────────────────────────────────────────────
 
   const selectedNode = selectedNodeId
-    ? initialNodes.find((n) => n.id === selectedNodeId) ?? null
+    ? graphNodes.find((n) => n.id === selectedNodeId) ?? null
     : null;
   const selectedNodeReqs = requirements.filter((r) => r.nodeId === selectedNodeId);
-
-  // ── Add node ───────────────────────────────────────────────────────────────
-
-  function AddNodePanel() {
-    const [label, setLabel] = useState("");
-    const [slug, setSlug] = useState("");
-    const [kind, setKind] = useState("QUESTION");
-    const [desc, setDesc] = useState("");
-
-    return (
-      <div className="absolute right-4 top-4 z-10 w-72 rounded-xl border border-divider bg-content1 p-4 shadow-lg">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-semibold text-foreground">Add node</p>
-          <button type="button" onClick={() => setShowAddNode(false)} className="text-foreground/40 hover:text-foreground">
-            <LuX className="size-4" />
-          </button>
-        </div>
-        <div className="space-y-2">
-          <input
-            value={label}
-            onChange={(e) => {
-              setLabel(e.target.value);
-              if (!slug) setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
-            }}
-            placeholder="Label"
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            placeholder="slug"
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value)}
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {NODE_KINDS.map((k) => <option key={k} value={k}>{k.replace(/_/g, " ")}</option>)}
-          </select>
-          <textarea
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="Description (optional)"
-            rows={2}
-            className="w-full resize-none rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <button
-            type="button"
-            disabled={!label || !slug || isPending}
-            onClick={() => {
-              startTransition(async () => {
-                const result = await addGraphNode({ graphId, slug, label, kind, description: desc || undefined });
-                if (result.error) { showToast("error", result.error); return; }
-                // Add to canvas
-                const newNode: Node = {
-                  id: result.id!,
-                  type: "ontologyNode",
-                  position: { x: Math.random() * 400, y: Math.random() * 300 },
-                  data: { label, kind, description: desc || null, requirementCount: 0, onSelect: setSelectedNodeId },
-                };
-                setNodes((nds) => [...nds, newNode]);
-                showToast("success", "Node added");
-                setShowAddNode(false);
-              });
-            }}
-            className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            Add node
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Add edge ───────────────────────────────────────────────────────────────
-
-  function AddEdgePanel() {
-    const [sourceId, setSourceId] = useState("");
-    const [targetId, setTargetId] = useState("");
-    const [kind, setKind] = useState("REQUIRES");
-
-    return (
-      <div className="absolute right-4 top-4 z-10 w-72 rounded-xl border border-divider bg-content1 p-4 shadow-lg">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-semibold text-foreground">Add edge</p>
-          <button type="button" onClick={() => setShowAddEdge(false)} className="text-foreground/40 hover:text-foreground">
-            <LuX className="size-4" />
-          </button>
-        </div>
-        <div className="space-y-2">
-          <select value={sourceId} onChange={(e) => setSourceId(e.target.value)}
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option value="">Source node…</option>
-            {initialNodes.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
-          </select>
-          <select value={kind} onChange={(e) => setKind(e.target.value)}
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            {EDGE_KINDS.map((k) => <option key={k} value={k}>{k.replace(/_/g, " ")}</option>)}
-          </select>
-          <select value={targetId} onChange={(e) => setTargetId(e.target.value)}
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option value="">Target node…</option>
-            {initialNodes.filter((n) => n.id !== sourceId).map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
-          </select>
-          <button
-            type="button"
-            disabled={!sourceId || !targetId || isPending}
-            onClick={() => {
-              startTransition(async () => {
-                const result = await addGraphEdge({ graphId, sourceId, targetId, kind });
-                if (result.error) { showToast("error", result.error); return; }
-                const newEdge: Edge = {
-                  id: result.id!,
-                  source: sourceId,
-                  target: targetId,
-                  label: kind.replace(/_/g, " "),
-                  type: "smoothstep",
-                  animated: kind === "REQUIRES",
-                  style: { stroke: "hsl(var(--heroui-primary))", strokeWidth: 1.5 },
-                  labelStyle: { fontSize: 10 },
-                };
-                setEdges((eds) => [...eds, newEdge]);
-                showToast("success", "Edge added");
-                setShowAddEdge(false);
-              });
-            }}
-            className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            Add edge
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Node detail panel ──────────────────────────────────────────────────────
-
-  function NodeDetailPanel() {
-    if (!selectedNode) return null;
-    const [editLabel, setEditLabel] = useState(selectedNode.label);
-    const [editDesc, setEditDesc] = useState(selectedNode.description ?? "");
-    const [newReqTitle, setNewReqTitle] = useState("");
-    const [newReqPriority, setNewReqPriority] = useState("medium");
-
-    return (
-      <div className="absolute bottom-4 left-4 z-10 w-80 max-h-[60vh] overflow-y-auto rounded-xl border border-divider bg-content1 p-4 shadow-lg">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${KIND_BADGE[selectedNode.kind] ?? KIND_BADGE.ENTITY}`}>
-              {selectedNode.kind.replace(/_/g, " ")}
-            </span>
-            <p className="text-sm font-semibold text-foreground">{selectedNode.label}</p>
-          </div>
-          <button type="button" onClick={() => setSelectedNodeId(null)} className="text-foreground/40 hover:text-foreground">
-            <LuX className="size-4" />
-          </button>
-        </div>
-
-        {/* Edit label/desc */}
-        <div className="mb-3 space-y-2">
-          <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)}
-            className="w-full rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-          <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2}
-            placeholder="Description"
-            className="w-full resize-none rounded-md border border-divider bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-          <div className="flex gap-2">
-            <button type="button" disabled={isPending}
-              onClick={() => {
-                startTransition(async () => {
-                  await updateGraphNode({ nodeId: selectedNode.id, graphId, label: editLabel, description: editDesc || undefined });
-                  setNodes((nds) => nds.map((n) => n.id === selectedNode.id
-                    ? { ...n, data: { ...n.data, label: editLabel, description: editDesc || null } }
-                    : n));
-                  showToast("success", "Node updated");
-                });
-              }}
-              className="flex-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:opacity-80 disabled:opacity-50">
-              Save
-            </button>
-            <button type="button" disabled={isPending}
-              onClick={() => {
-                if (!confirm("Delete this node and all its requirements?")) return;
-                startTransition(async () => {
-                  await deleteGraphNode({ nodeId: selectedNode.id, graphId });
-                  setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
-                  setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
-                  setRequirements((rs) => rs.filter((r) => r.nodeId !== selectedNode.id));
-                  setSelectedNodeId(null);
-                  showToast("success", "Node deleted");
-                });
-              }}
-              className="rounded-md bg-danger/10 px-3 py-1.5 text-xs font-medium text-danger hover:opacity-80 disabled:opacity-50">
-              <LuTrash2 className="size-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Requirements */}
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/45">
-            Requirements ({selectedNodeReqs.length})
-          </p>
-          <ul className="mb-2 space-y-1">
-            {selectedNodeReqs.map((req) => (
-              <li key={req.id} className="flex items-start justify-between gap-2 rounded-md bg-content2/50 px-2.5 py-2 text-xs">
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground leading-snug">{req.title}</p>
-                  <span className={`text-[10px] ${req.priority === "high" ? "text-danger" : req.priority === "low" ? "text-foreground/40" : "text-warning"}`}>
-                    {req.priority}
-                  </span>
-                </div>
-                <button type="button" disabled={isPending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      await deleteGraphRequirement({ requirementId: req.id, graphId });
-                      setRequirements((rs) => rs.filter((r) => r.id !== req.id));
-                    });
-                  }}
-                  className="shrink-0 text-foreground/30 hover:text-danger disabled:opacity-50">
-                  <LuX className="size-3" />
-                </button>
-              </li>
-            ))}
-          </ul>
-          {/* Add requirement */}
-          <div className="space-y-1.5">
-            <input value={newReqTitle} onChange={(e) => setNewReqTitle(e.target.value)}
-              placeholder="New requirement title"
-              className="w-full rounded-md border border-divider bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            <div className="flex gap-1.5">
-              <select value={newReqPriority} onChange={(e) => setNewReqPriority(e.target.value)}
-                className="flex-1 rounded-md border border-divider bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <button type="button" disabled={!newReqTitle || isPending}
-                onClick={() => {
-                  startTransition(async () => {
-                    const result = await addGraphRequirement({
-                      graphId,
-                      nodeId: selectedNode.id,
-                      title: newReqTitle,
-                      priority: newReqPriority,
-                    });
-                    if (result.error) { showToast("error", result.error); return; }
-                    setRequirements((rs) => [...rs, {
-                      id: result.id!,
-                      title: newReqTitle,
-                      description: null,
-                      priority: newReqPriority,
-                      nodeId: selectedNode.id,
-                    }]);
-                    setNewReqTitle("");
-                    showToast("success", "Requirement added");
-                  });
-                }}
-                className="rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
-                <LuPlus className="size-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -562,9 +629,45 @@ export function GraphCanvas({
       </ReactFlow>
 
       {/* Panels */}
-      {showAddNode && graphStatus === "DRAFT" && <AddNodePanel />}
-      {showAddEdge && graphStatus === "DRAFT" && <AddEdgePanel />}
-      {selectedNodeId && <NodeDetailPanel />}
+      {showAddNode && graphStatus === "DRAFT" && (
+        <AddNodePanel
+          graphId={graphId}
+          isPending={isPending}
+          startTransition={startTransition}
+          showToast={showToast}
+          setShowAddNode={setShowAddNode}
+          setSelectedNodeId={setSelectedNodeId}
+          setGraphNodes={setGraphNodes}
+          setNodes={setNodes}
+        />
+      )}
+      {showAddEdge && graphStatus === "DRAFT" && (
+        <AddEdgePanel
+          graphId={graphId}
+          graphNodes={graphNodes}
+          isPending={isPending}
+          startTransition={startTransition}
+          showToast={showToast}
+          setShowAddEdge={setShowAddEdge}
+          setEdges={setEdges}
+        />
+      )}
+      {selectedNode && (
+        <NodeDetailPanel
+          key={selectedNode.id}
+          graphId={graphId}
+          selectedNode={selectedNode}
+          selectedNodeReqs={selectedNodeReqs}
+          isPending={isPending}
+          startTransition={startTransition}
+          showToast={showToast}
+          setSelectedNodeId={setSelectedNodeId}
+          setGraphNodes={setGraphNodes}
+          setNodes={setNodes}
+          setEdges={setEdges}
+          setRequirements={setRequirements}
+        />
+      )}
 
       {/* Toast */}
       {toast && (

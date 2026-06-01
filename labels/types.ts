@@ -77,6 +77,21 @@ export type AppLabels = {
       settingsCta: string;
       registerCta: string;
     };
+    resetPassword: {
+      heading: string;
+      description: string;
+      newPasswordLabel: string;
+      confirmPasswordLabel: string;
+      submitCta: string;
+      pendingCta: string;
+      signInCta: string;
+      missingHeading: string;
+      missingDescription: string;
+      invalidHeading: string;
+      invalidDescription: string;
+      expiredHeading: string;
+      expiredDescription: string;
+    };
   };
   app: {
     dashboard: {
@@ -364,6 +379,11 @@ export type AppLabels = {
             description: string;
             placeholder: string;
           };
+          DEEPSEEK: {
+            name: string;
+            description: string;
+            placeholder: string;
+          };
           LOCAL: {
             name: string;
             description: string;
@@ -491,10 +511,21 @@ export type AppLabels = {
       systemRoleLabel: string;
       localeLabel: string;
       emailVerifiedLabel: string;
+      emailVerificationStateLabel: string;
+      emailVerifiedStateLabel: string;
+      emailUnverifiedStateLabel: string;
       createdLabel: string;
       updatedLabel: string;
       neverLabel: string;
       emptyValue: string;
+      userEditHeading: string;
+      userEditCta: string;
+      userEditPendingCta: string;
+      systemRoleAdminLabel: string;
+      systemRoleUserLabel: string;
+      passwordResetHeading: string;
+      passwordResetCta: string;
+      passwordResetPendingCta: string;
       activityHeading: string;
       projectsCountLabel: string;
       firmMembershipsCountLabel: string;

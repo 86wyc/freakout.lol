@@ -90,6 +90,19 @@ describe("DiligenceLLMService", () => {
       expect(result.parsed.summary).toBe("fenced");
     });
 
+    it("repairs unescaped control characters inside JSON string values", async () => {
+      mockInvoke.mockResolvedValueOnce({
+        content: '{"summary": "line one\nline two", "items": []}',
+      });
+
+      const result = await service.invokeStructured<{
+        summary: string;
+        items: unknown[];
+      }>(baseInput);
+
+      expect(result.parsed.summary).toBe("line one\nline two");
+    });
+
     it("falls back to next provider when primary fails", async () => {
       mockInvoke
         .mockRejectedValueOnce(new Error("Rate limited"))

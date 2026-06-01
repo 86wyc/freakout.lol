@@ -5,6 +5,7 @@ vi.mock("@/lib/generated/prisma/client", () => ({
     OPENAI: "OPENAI",
     ANTHROPIC: "ANTHROPIC",
     GOOGLE: "GOOGLE",
+    DEEPSEEK: "DEEPSEEK",
     LOCAL: "LOCAL",
   },
 }));
@@ -153,6 +154,10 @@ describe("defaultModelForProvider", () => {
 
   it("returns gemini-2.5-flash for GOOGLE", () => {
     expect(defaultModelForProvider("GOOGLE")).toBe("gemini-2.5-flash");
+  });
+
+  it("returns deepseek-v4-flash for DEEPSEEK", () => {
+    expect(defaultModelForProvider("DEEPSEEK")).toBe("deepseek-v4-flash");
   });
 
   it("returns llama3.1 for LOCAL", () => {

@@ -32,6 +32,7 @@ vi.mock("@/lib/generated/prisma/client", () => ({
     OPENAI: "OPENAI",
     ANTHROPIC: "ANTHROPIC",
     GOOGLE: "GOOGLE",
+    DEEPSEEK: "DEEPSEEK",
     LOCAL: "LOCAL",
   },
 }));
@@ -41,12 +42,13 @@ vi.mock("@/lib/diligence/model-provider", () => ({
 }));
 
 vi.mock("@/lib/diligence/model-router", () => ({
-  MODEL_PROVIDER_ORDER: ["OPENAI", "ANTHROPIC", "GOOGLE", "LOCAL"],
+  MODEL_PROVIDER_ORDER: ["OPENAI", "ANTHROPIC", "GOOGLE", "DEEPSEEK", "LOCAL"],
   defaultModelForProvider: (provider: string) => {
     const defaults: Record<string, string> = {
       OPENAI: "gpt-4o-mini",
       ANTHROPIC: "claude-3-5-sonnet-latest",
       GOOGLE: "gemini-2.5-flash",
+      DEEPSEEK: "deepseek-v4-flash",
       LOCAL: "llama3.1",
     };
     return defaults[provider] ?? "unknown";
@@ -69,7 +71,7 @@ describe("getApiKeyStatuses", () => {
 
     const result = await getApiKeyStatuses();
 
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(5);
     expect(result[0]).toEqual({
       id: null,
       provider: "OPENAI",
@@ -82,7 +84,8 @@ describe("getApiKeyStatuses", () => {
     });
     expect(result[1].provider).toBe("ANTHROPIC");
     expect(result[2].provider).toBe("GOOGLE");
-    expect(result[3].provider).toBe("LOCAL");
+    expect(result[3].provider).toBe("DEEPSEEK");
+    expect(result[4].provider).toBe("LOCAL");
   });
 
   it("returns default statuses when session has no user id", async () => {
@@ -90,7 +93,7 @@ describe("getApiKeyStatuses", () => {
 
     const result = await getApiKeyStatuses();
 
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(5);
     result.forEach((status) => {
       expect(status.isSet).toBe(false);
       expect(status.enabled).toBe(false);
@@ -113,7 +116,7 @@ describe("getApiKeyStatuses", () => {
 
     const result = await getApiKeyStatuses();
 
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(5);
     expect(result[0]).toEqual({
       id: "key-1",
       provider: "OPENAI",
@@ -132,6 +135,16 @@ describe("getApiKeyStatuses", () => {
       hint: null,
       connectorUrl: null,
       defaultModel: "claude-3-5-sonnet-latest",
+      enabled: false,
+      lastValidatedAt: null,
+    });
+    expect(result[3]).toEqual({
+      id: null,
+      provider: "DEEPSEEK",
+      isSet: false,
+      hint: null,
+      connectorUrl: null,
+      defaultModel: "deepseek-v4-flash",
       enabled: false,
       lastValidatedAt: null,
     });

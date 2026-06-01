@@ -96,6 +96,9 @@ export function estimateCostUsd(
   if (provider === ApiKeyProvider.GOOGLE) {
     return totalTokens * 0.0000002;
   }
+  if (provider === ApiKeyProvider.DEEPSEEK) {
+    return inputTokens * 0.00000014 + outputTokens * 0.00000028;
+  }
   return 0;
 }
 

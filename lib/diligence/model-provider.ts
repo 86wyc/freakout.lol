@@ -7,6 +7,8 @@ import {
   parseLocalLlmConnectorConfig,
 } from "@/lib/diligence/local-llm";
 
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+
 export type UsageMetadata = {
   input_tokens?: number;
   output_tokens?: number;
@@ -75,6 +77,26 @@ class GoogleModelProvider implements ModelProvider {
   }
 }
 
+class DeepSeekModelProvider implements ModelProvider {
+  provider = ApiKeyProvider.DEEPSEEK;
+
+  createChatModel(config: ProviderModelConfig): ChatModelLike {
+    return new ChatOpenAI({
+      apiKey: config.apiKey,
+      model: config.model,
+      temperature: config.temperature ?? 0,
+      maxRetries: config.maxRetries ?? 2,
+      useResponsesApi: false,
+      modelKwargs: {
+        thinking: { type: "disabled" },
+      },
+      configuration: {
+        baseURL: DEEPSEEK_BASE_URL,
+      },
+    }) as unknown as ChatModelLike;
+  }
+}
+
 class LocalLlmModelProvider implements ModelProvider {
   provider = ApiKeyProvider.LOCAL;
 
@@ -105,6 +127,7 @@ export class ModelProviderRegistry {
       new OpenAiModelProvider(),
       new AnthropicModelProvider(),
       new GoogleModelProvider(),
+      new DeepSeekModelProvider(),
       new LocalLlmModelProvider(),
     ];
     this.providers = new Map(
