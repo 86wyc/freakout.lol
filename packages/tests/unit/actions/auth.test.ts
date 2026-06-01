@@ -568,7 +568,10 @@ describe("resetPasswordWithToken", () => {
       token: "hashed-token",
       expires: new Date(Date.now() + 60_000),
     });
-    mockDb.user.findUnique.mockResolvedValue({ id: "user-1" });
+    mockDb.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      emailVerified: null,
+    });
 
     const result = await resetPasswordWithToken(
       createFormData({
@@ -581,7 +584,10 @@ describe("resetPasswordWithToken", () => {
 
     expect(mockDb.user.update).toHaveBeenCalledWith({
       where: { id: "user-1" },
-      data: { password: "hashed_password" },
+      data: {
+        password: "hashed_password",
+        emailVerified: expect.any(Date),
+      },
     });
     expect(mockDb.verificationToken.delete).toHaveBeenCalled();
     expect(result).toEqual({

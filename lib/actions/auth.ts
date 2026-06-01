@@ -363,7 +363,7 @@ export async function resetPasswordWithToken(
 
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: { id: true, emailVerified: true },
   });
   if (!user) {
     await deletePasswordResetToken({ userId, token }).catch(() => undefined);
@@ -373,7 +373,10 @@ export async function resetPasswordWithToken(
   const hashedPassword = await bcrypt.hash(newPassword, PASSWORD_HASH_COST);
   await db.user.update({
     where: { id: userId },
-    data: { password: hashedPassword },
+    data: {
+      password: hashedPassword,
+      emailVerified: user.emailVerified ?? new Date(),
+    },
   });
   await deletePasswordResetToken({ userId, token });
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseJsonWithControlCharacterRepair } from "@/lib/utils/json";
+import {
+  extractFirstJsonObject,
+  parseJsonWithControlCharacterRepair,
+} from "@/lib/utils/json";
 
 describe("parseJsonWithControlCharacterRepair", () => {
   it("parses valid JSON without changing escaped content", () => {
@@ -22,5 +25,25 @@ describe("parseJsonWithControlCharacterRepair", () => {
     expect(() =>
       parseJsonWithControlCharacterRepair('{"text": "missing end"')
     ).toThrow(SyntaxError);
+  });
+});
+
+describe("extractFirstJsonObject", () => {
+  it("extracts the first complete object when trailing prose contains braces", () => {
+    expect(
+      extractFirstJsonObject(
+        'prefix {"summary":"ok","items":[{"name":"x"}]} trailing {not json}'
+      )
+    ).toBe('{"summary":"ok","items":[{"name":"x"}]}');
+  });
+
+  it("ignores braces inside JSON strings", () => {
+    expect(
+      extractFirstJsonObject('{"summary":"uses {curly} braces","items":[]}\n{"extra":true}')
+    ).toBe('{"summary":"uses {curly} braces","items":[]}');
+  });
+
+  it("returns null when no complete object is present", () => {
+    expect(extractFirstJsonObject('{"summary":"missing end"')).toBeNull();
   });
 });

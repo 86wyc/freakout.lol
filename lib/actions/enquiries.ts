@@ -11,7 +11,10 @@ import {
 import { ProjectModel } from "@/lib/models/ProjectModel";
 import { UserApiKeyModel } from "@/lib/models/UserApiKeyModel";
 import { asArray, asRecord, asString } from "@/lib/utils/coerce";
-import { parseJsonWithControlCharacterRepair } from "@/lib/utils/json";
+import {
+  extractFirstJsonObject,
+  parseJsonWithControlCharacterRepair,
+} from "@/lib/utils/json";
 
 const MAX_QUESTION_LENGTH = 1_200;
 const MAX_HISTORY_ITEMS = 8;
@@ -666,13 +669,7 @@ function parseEnquiryResponse(raw: string): ParsedEnquiryResponse | null {
 }
 
 function extractJsonCandidate(raw: string): string | null {
-  const trimmed = raw.trim();
-  const firstBrace = trimmed.indexOf("{");
-  const lastBrace = trimmed.lastIndexOf("}");
-  if (firstBrace < 0 || lastBrace <= firstBrace) {
-    return null;
-  }
-  return trimmed.slice(firstBrace, lastBrace + 1);
+  return extractFirstJsonObject(raw.trim());
 }
 
 function buildSourceList(input: {

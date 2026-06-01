@@ -7,7 +7,10 @@ import {
   type UsageMetadata,
 } from "@/lib/diligence/model-provider";
 import { LlmOutputParseError } from "@/lib/diligence/errors";
-import { parseJsonWithControlCharacterRepair } from "@/lib/utils/json";
+import {
+  extractFirstJsonObject,
+  parseJsonWithControlCharacterRepair,
+} from "@/lib/utils/json";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import type { ZodType } from "zod";
@@ -155,12 +158,7 @@ function parseAndValidate<T>(
   zodSchema: ZodType<T> | undefined
 ): T {
   const cleaned = stripFences(rawText).trim();
-  const firstBrace = cleaned.indexOf("{");
-  const lastBrace = cleaned.lastIndexOf("}");
-  const candidate =
-    firstBrace >= 0 && lastBrace > firstBrace
-      ? cleaned.slice(firstBrace, lastBrace + 1)
-      : cleaned;
+  const candidate = extractFirstJsonObject(cleaned) ?? cleaned;
 
   let parsed: unknown;
   try {

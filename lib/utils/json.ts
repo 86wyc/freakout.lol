@@ -11,6 +11,54 @@ export function parseJsonWithControlCharacterRepair<T = unknown>(
   }
 }
 
+export function extractFirstJsonObject(input: string): string | null {
+  const start = input.indexOf("{");
+  if (start < 0) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (inString && char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return input.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
 function isControlCharacterJsonParseError(error: unknown): boolean {
   if (!(error instanceof SyntaxError)) {
     return false;

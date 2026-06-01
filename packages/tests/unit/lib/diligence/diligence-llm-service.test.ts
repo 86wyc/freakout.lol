@@ -103,6 +103,20 @@ describe("DiligenceLLMService", () => {
       expect(result.parsed.summary).toBe("line one\nline two");
     });
 
+    it("parses the first JSON object when the model appends another object", async () => {
+      mockInvoke.mockResolvedValueOnce({
+        content:
+          '{"summary": "ok", "items": []}\n\n{"note": "extra object that should be ignored"}',
+      });
+
+      const result = await service.invokeStructured<{
+        summary: string;
+        items: unknown[];
+      }>(baseInput);
+
+      expect(result.parsed).toEqual({ summary: "ok", items: [] });
+    });
+
     it("falls back to next provider when primary fails", async () => {
       mockInvoke
         .mockRejectedValueOnce(new Error("Rate limited"))
