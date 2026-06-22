@@ -51,7 +51,7 @@ vi.mock("@/lib/diligence/model-router", () => ({
       ANTHROPIC: "claude-3-5-sonnet-latest",
       GOOGLE: "gemini-2.5-flash",
       DEEPSEEK: "deepseek-v4-flash",
-      LOCAL: "llama3.1",
+      LOCAL: "llama3.1:8b",
     };
     return defaults[provider] ?? "unknown";
   },
@@ -182,7 +182,7 @@ describe("getApiKeyStatuses", () => {
         provider: "LOCAL",
         encryptedKey: "encrypted-local",
         keyHint: "localhost:11434",
-        defaultModel: "llama3.1",
+        defaultModel: "llama3.1:8b",
         enabled: true,
         lastValidatedAt: null,
       },
@@ -203,7 +203,7 @@ describe("getApiKeyStatuses", () => {
       isSet: true,
       hint: "localhost:11434",
       connectorUrl: "http://localhost:11434/v1",
-      defaultModel: "llama3.1",
+      defaultModel: "llama3.1:8b",
       enabled: true,
       lastValidatedAt: null,
     });

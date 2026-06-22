@@ -160,7 +160,7 @@ describe("defaultModelForProvider", () => {
     expect(defaultModelForProvider("DEEPSEEK")).toBe("deepseek-v4-flash");
   });
 
-  it("returns llama3.1 for LOCAL", () => {
-    expect(defaultModelForProvider("LOCAL")).toBe("llama3.1");
+  it("returns llama3.1:8b for LOCAL", () => {
+    expect(defaultModelForProvider("LOCAL")).toBe("llama3.1:8b");
   });
 });

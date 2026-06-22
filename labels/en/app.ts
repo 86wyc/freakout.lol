@@ -327,6 +327,7 @@ export const appLabels: AppLabels["app"] = {
         "Use an endpoint reachable from the app server. Leave the API key blank for unauthenticated local servers.",
       localEndpointInvalid: "Enter a valid HTTP(S) endpoint URL.",
       defaultModelLabel: "Default model",
+      defaultModelPlaceholder: "llama3.1:8b",
       enabledLabel: "Connector enabled for diligence jobs",
       saveSettingsCta: "Save connector settings",
       saveCta: "Save",

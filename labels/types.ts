@@ -403,6 +403,7 @@ export type AppLabels = {
         localApiKeyHint: string;
         localEndpointInvalid: string;
         defaultModelLabel: string;
+        defaultModelPlaceholder: string;
         enabledLabel: string;
         saveSettingsCta: string;
         saveCta: string;

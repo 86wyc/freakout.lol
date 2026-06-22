@@ -39,6 +39,7 @@ export type ApiKeyConnectorLabels = {
   localApiKeyHint: string;
   localEndpointInvalid: string;
   defaultModelLabel: string;
+  defaultModelPlaceholder: string;
   enabledLabel: string;
   saveSettingsCta: string;
   saveCta: string;
@@ -391,7 +392,7 @@ export function ApiKeyCard({
                   <input
                     value={defaultModel}
                     onChange={(event) => setDefaultModel(event.target.value)}
-                    placeholder="llama3.1"
+                    placeholder={labels.defaultModelPlaceholder}
                     className="mt-1 w-full rounded-md border border-divider bg-background px-3 py-2 text-sm text-foreground"
                   />
                 </label>

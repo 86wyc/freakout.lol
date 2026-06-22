@@ -77,6 +77,7 @@ describe("ApiKeyCard", () => {
     localApiKeyHint: "Use an endpoint reachable from the app server.",
     localEndpointInvalid: "Enter a valid HTTP(S) endpoint URL.",
     defaultModelLabel: "Default model",
+    defaultModelPlaceholder: "llama3.1:8b",
     enabledLabel: "Connector enabled for diligence jobs",
     saveSettingsCta: "Save connector settings",
     saveCta: "Save",
@@ -424,7 +425,7 @@ describe("ApiKeyCard", () => {
     const localInitial = {
       ...defaultInitial,
       provider: "LOCAL" as const,
-      defaultModel: "llama3.1",
+      defaultModel: "llama3.1:8b",
     };
 
     render(
@@ -451,7 +452,7 @@ describe("ApiKeyCard", () => {
           apiKey: "local-token",
         }),
         {
-          defaultModel: "llama3.1",
+          defaultModel: "llama3.1:8b",
           enabled: true,
         }
       );

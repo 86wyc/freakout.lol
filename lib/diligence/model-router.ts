@@ -26,7 +26,7 @@ const PROVIDER_DEFAULT_MODELS: Record<ApiKeyProvider, string> = {
   ANTHROPIC: "claude-3-5-sonnet-latest",
   GOOGLE: "gemini-2.5-flash",
   DEEPSEEK: "deepseek-v4-flash",
-  LOCAL: "llama3.1",
+  LOCAL: "llama3.1:8b",
 };
 
 export const MODEL_PROVIDER_ORDER: ApiKeyProvider[] = [
