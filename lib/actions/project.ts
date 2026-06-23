@@ -260,6 +260,7 @@ export async function startProjectDueDiligence(
       where: { id: existingJob.id, userId: session.user.id },
       data: {
         status: DiligenceJobStatus.QUEUED,
+        workflowRunId: null,
         errorMessage: null,
         completedAt: null,
         lastHeartbeatAt: null,
@@ -504,6 +505,7 @@ export async function retryProjectDueDiligence(
       where: { id: jobId, userId: session.user.id },
       data: {
         status: DiligenceJobStatus.QUEUED,
+        workflowRunId: null,
         errorMessage: null,
         completedAt: null,
         lastHeartbeatAt: null,

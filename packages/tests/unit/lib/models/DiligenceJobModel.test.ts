@@ -210,8 +210,6 @@ describe("DiligenceJobModel", () => {
             userId: "user-1",
             status: "QUEUED",
             workflowRunId: null,
-            currentStage: null,
-            attemptCount: 0,
             updatedAt: { lt: expect.any(Date) },
           }),
         })

@@ -302,6 +302,7 @@ describe("startProjectDueDiligence", () => {
       where: { id: "job-1", userId: "user-1" },
       data: {
         status: "QUEUED",
+        workflowRunId: null,
         errorMessage: null,
         completedAt: null,
         lastHeartbeatAt: null,
@@ -426,6 +427,7 @@ describe("retryProjectDueDiligence", () => {
       where: { id: "job-1", userId: "user-1" },
       data: {
         status: "QUEUED",
+        workflowRunId: null,
         errorMessage: null,
         completedAt: null,
         lastHeartbeatAt: null,
@@ -453,6 +455,7 @@ describe("retryProjectDueDiligence", () => {
       where: { id: "job-1", userId: "user-1" },
       data: {
         status: "QUEUED",
+        workflowRunId: null,
         errorMessage: null,
         completedAt: null,
         lastHeartbeatAt: null,

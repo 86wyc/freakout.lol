@@ -316,8 +316,6 @@ export const DiligenceJobModel = {
         userId: input.userId,
         status: DiligenceJobStatus.QUEUED,
         workflowRunId: null,
-        currentStage: null,
-        attemptCount: 0,
         updatedAt: { lt: cutoff },
       },
       orderBy: { createdAt: "desc" },
@@ -337,8 +335,6 @@ export const DiligenceJobModel = {
           userId: input.userId,
           status: DiligenceJobStatus.QUEUED,
           workflowRunId: null,
-          currentStage: null,
-          attemptCount: 0,
           updatedAt: { lt: cutoff },
         },
         data: {
