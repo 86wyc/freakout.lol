@@ -29,8 +29,9 @@ vi.mock("@/lib/actions/project", () => ({
 const labels = {
   documentsHeading: "Files",
   fileInputLabel: "Upload files",
+  folderInputLabel: "Upload folder",
   uploadInProgress: "Uploading...",
-  dropzoneTitle: "Drag and drop files to upload",
+  dropzoneTitle: "Drag and drop files or folders to upload",
   dropzoneHint: "Files upload automatically after drop.",
   uploadQueueHeading: "Upload progress",
   uploadStatusQueued: "Queued",
@@ -256,6 +257,112 @@ describe("ProjectDocumentsPanel", () => {
     expect(screen.queryByText("Upload denied")).not.toBeInTheDocument();
   });
 
+  it("posts folder-selected files with their relative path", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ documents: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          document: {
+            id: "doc-1",
+            filename: "Deal Room/report.pdf",
+            pathname: "firm-1/project-1/Deal Room/report.pdf",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          documents: [
+            {
+              id: "doc-1",
+              filename: "Deal Room/report.pdf",
+              pathname: "firm-1/project-1/Deal Room/report.pdf",
+              size: 2048,
+              uploadedAt: "2026-05-06T00:00:00.000Z",
+              processingStatus: "QUEUED",
+              processingError: null,
+              lastProcessedAt: null,
+              reprocessCount: 0,
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const folderFile = new File(["file body"], "report.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(folderFile, "webkitRelativePath", {
+      value: "Deal Room/report.pdf",
+    });
+
+    const user = userEvent.setup();
+    render(
+      <ProjectDocumentsPanel
+        projectId="project-1"
+        projectStatus="draft"
+        hasAnyApiKeys={true}
+        apiKeyStatuses={[...apiKeyStatuses]}
+        diligenceJob={null}
+        diligenceSnapshots={[]}
+        labels={labels}
+      />
+    );
+
+    await screen.findByText("No files uploaded yet.");
+    await user.upload(screen.getByLabelText("Upload folder"), folderFile);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+    const postBody = fetchMock.mock.calls[1][1]?.body as FormData;
+    expect(postBody.get("relativePath")).toBe("Deal Room/report.pdf");
+    expect(postBody.get("file")).toBe(folderFile);
+    expect(await screen.findByText("Deal Room/report.pdf")).toBeInTheDocument();
+  });
+
+  it("ignores system files from folder selection", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ documents: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const metadataFile = new File(["metadata"], ".DS_Store", {
+      type: "application/octet-stream",
+    });
+    Object.defineProperty(metadataFile, "webkitRelativePath", {
+      value: "later/.DS_Store",
+    });
+
+    const user = userEvent.setup();
+    render(
+      <ProjectDocumentsPanel
+        projectId="project-1"
+        projectStatus="draft"
+        hasAnyApiKeys={true}
+        apiKeyStatuses={[...apiKeyStatuses]}
+        diligenceJob={null}
+        diligenceSnapshots={[]}
+        labels={labels}
+      />
+    );
+
+    await screen.findByText("No files uploaded yet.");
+    await user.upload(screen.getByLabelText("Upload folder"), metadataFile);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText("later/.DS_Store")).not.toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+  });
+
   it("hides file upload controls while diligence is in progress", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce({
       ok: true,
@@ -305,7 +412,7 @@ describe("ProjectDocumentsPanel", () => {
     expect(await screen.findByText("report.pdf")).toBeInTheDocument();
     expect(screen.queryByText("Upload files")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Drag and drop files to upload")
+      screen.queryByText("Drag and drop files or folders to upload")
     ).not.toBeInTheDocument();
     expect(screen.getByText("Diligence worker")).toBeInTheDocument();
   });

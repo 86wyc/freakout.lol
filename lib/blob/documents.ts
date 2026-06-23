@@ -16,6 +16,12 @@ export const ALLOWED_DOCUMENT_FORMATS_LABEL =
 const ALLOWED_DOCUMENT_EXTENSION_SET = new Set<string>(
   ALLOWED_DOCUMENT_EXTENSIONS
 );
+const IGNORED_UPLOAD_BASENAMES = new Set([
+  ".DS_Store",
+  "Thumbs.db",
+  "Desktop.ini",
+]);
+const IGNORED_UPLOAD_PREFIXES = ["._", "~$"];
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]+$/;
 const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._() -]+$/;
 
@@ -90,6 +96,32 @@ export function sanitizeDocumentPathSegments(segments: string[]): string | null 
   }
 
   return sanitizedSegments.join("/");
+}
+
+export function sanitizeDocumentUploadPath(path: string): string | null {
+  const normalizedPath = path.trim().replace(/\\/g, "/");
+  if (
+    !normalizedPath ||
+    normalizedPath.startsWith("/") ||
+    /^[A-Za-z]:\//.test(normalizedPath)
+  ) {
+    return null;
+  }
+
+  return sanitizeDocumentPathSegments(normalizedPath.split("/"));
+}
+
+export function isIgnoredDocumentUploadPath(path: string): boolean {
+  const normalizedPath = path.trim().replace(/\\/g, "/");
+  const basename = normalizedPath.split("/").filter(Boolean).at(-1) ?? "";
+  if (!basename) {
+    return false;
+  }
+
+  return (
+    IGNORED_UPLOAD_BASENAMES.has(basename) ||
+    IGNORED_UPLOAD_PREFIXES.some((prefix) => basename.startsWith(prefix))
+  );
 }
 
 /**

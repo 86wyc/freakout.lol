@@ -4,6 +4,7 @@ import {
   DiligenceJobStatus,
   type DiligenceStageName,
   type DiligenceStageStatus,
+  ProjectStatus,
 } from "@/lib/generated/prisma/client";
 import { asNullableString, asRecord } from "@/lib/utils/coerce";
 
@@ -64,6 +65,8 @@ export type RestrictedDiligenceInsights = {
 };
 
 const VISIBLE_FINDING_SEVERITIES = new Set(["critical", "high", "medium", "low"]);
+const STALE_WORKFLOW_START_ERROR =
+  "The diligence workflow did not start. Check the local Workflow callback URL, restart the dev server, then retry diligence.";
 
 function getVisibleFindingSeverity(metadata: unknown): string | null {
   const severity = asNullableString(asRecord(metadata).severity)?.toLowerCase() ?? null;
@@ -92,6 +95,15 @@ function toJobSummary(
     return null;
   }
   return row;
+}
+
+function getWorkflowStartTimeoutMs(): number {
+  const configured = Number(process.env.DILIGENCE_WORKFLOW_START_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+
+  return process.env.VERCEL_DEPLOYMENT_ID ? 120_000 : 15_000;
 }
 
 export const DiligenceJobModel = {
@@ -291,6 +303,74 @@ export const DiligenceJobModel = {
     }
 
     return job;
+  },
+
+  async failStaleWorkflowStartForProject(input: {
+    projectId: string;
+    userId: string;
+  }): Promise<{ jobId: string; errorMessage: string } | null> {
+    const cutoff = new Date(Date.now() - getWorkflowStartTimeoutMs());
+    const staleJob = await db.diligenceJob.findFirst({
+      where: {
+        projectId: input.projectId,
+        userId: input.userId,
+        status: DiligenceJobStatus.QUEUED,
+        workflowRunId: null,
+        currentStage: null,
+        attemptCount: 0,
+        updatedAt: { lt: cutoff },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!staleJob) {
+      return null;
+    }
+
+    const now = new Date();
+    const [jobUpdate] = await db.$transaction([
+      db.diligenceJob.updateMany({
+        where: {
+          id: staleJob.id,
+          projectId: input.projectId,
+          userId: input.userId,
+          status: DiligenceJobStatus.QUEUED,
+          workflowRunId: null,
+          currentStage: null,
+          attemptCount: 0,
+          updatedAt: { lt: cutoff },
+        },
+        data: {
+          status: DiligenceJobStatus.FAILED,
+          errorMessage: STALE_WORKFLOW_START_ERROR,
+          completedAt: now,
+          lastHeartbeatAt: now,
+        },
+      }),
+      db.project.updateMany({
+        where: {
+          id: input.projectId,
+          status: ProjectStatus.IN_PROGRESS,
+          diligenceJobs: {
+            some: {
+              id: staleJob.id,
+              userId: input.userId,
+            },
+          },
+        },
+        data: { status: ProjectStatus.DRAFT },
+      }),
+    ]);
+
+    if (jobUpdate.count === 0) {
+      return null;
+    }
+
+    return {
+      jobId: staleJob.id,
+      errorMessage: STALE_WORKFLOW_START_ERROR,
+    };
   },
 
   async getInsightsForProject(input: {

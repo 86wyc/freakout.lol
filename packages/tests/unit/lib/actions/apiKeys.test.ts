@@ -8,6 +8,10 @@ vi.mock("@/lib/auth", () => ({
 const mockListForUser = vi.fn();
 const mockDecryptApiKey = vi.fn();
 const mockEncryptApiKey = vi.fn();
+const mockCreateChatModel = vi.fn();
+const mockInvoke = vi.fn();
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 vi.mock("@/lib/models/UserApiKeyModel", () => ({
   UserApiKeyModel: {
     listForUser: mockListForUser,
@@ -40,7 +44,13 @@ vi.mock("@/lib/generated/prisma/client", () => ({
 }));
 
 vi.mock("@/lib/diligence/model-provider", () => ({
-  ModelProviderRegistry: class {},
+  ModelProviderRegistry: class {
+    getProvider() {
+      return {
+        createChatModel: mockCreateChatModel,
+      };
+    }
+  },
 }));
 
 vi.mock("@/lib/diligence/model-router", () => ({
@@ -61,7 +71,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-const { getApiKeyStatuses, upsertApiKey } = await import(
+const { getApiKeyStatuses, upsertApiKey, validateApiKey } = await import(
   "@/lib/actions/apiKeys"
 );
 
@@ -273,5 +283,102 @@ describe("upsertApiKey", () => {
       error: "Paste the raw DeepSeek API key, not a JSON object or quoted value.",
     });
     expect(mockUserApiKeyUpsert).not.toHaveBeenCalled();
+  });
+
+  it("checks tokenless local endpoints before save without invoking a model", async () => {
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+
+    const result = await upsertApiKey(
+      "LOCAL",
+      JSON.stringify({
+        baseUrl: "http://localhost:11434/v1",
+        apiKey: null,
+      }),
+      {
+        defaultModel: "llama3.1:8b",
+        validateBeforeSave: true,
+      }
+    );
+
+    expect(result).toEqual({});
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:11434/v1/models", {
+      headers: {},
+      cache: "no-store",
+    });
+    expect(mockCreateChatModel).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockUserApiKeyUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          lastValidatedAt: expect.any(Date),
+        }),
+        update: expect.objectContaining({
+          lastValidatedAt: expect.any(Date),
+        }),
+      })
+    );
+  });
+});
+
+describe("validateApiKey", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockCreateChatModel.mockReturnValue({ invoke: mockInvoke });
+    mockInvoke.mockResolvedValue("OK");
+  });
+
+  it("checks local connector reachability without an API key", async () => {
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+
+    const result = await validateApiKey(
+      "LOCAL",
+      JSON.stringify({
+        baseUrl: "http://localhost:11434/v1",
+        apiKey: null,
+      }),
+      "llama3.1:8b"
+    );
+
+    expect(result).toEqual({
+      validatedAt: expect.any(String),
+      modelUsed: "llama3.1:8b",
+    });
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:11434/v1/models", {
+      headers: {},
+      cache: "no-store",
+    });
+    expect(mockCreateChatModel).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("pings local connectors when an API key is provided", async () => {
+    const result = await validateApiKey(
+      "LOCAL",
+      JSON.stringify({
+        baseUrl: "http://localhost:11434/v1",
+        apiKey: "local-token",
+      }),
+      "llama3.1:8b"
+    );
+
+    expect(result).toEqual({
+      validatedAt: expect.any(String),
+      modelUsed: "llama3.1:8b",
+    });
+    expect(mockCreateChatModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "LOCAL",
+        model: "llama3.1:8b",
+        apiKey: JSON.stringify({
+          baseUrl: "http://localhost:11434/v1",
+          apiKey: "local-token",
+        }),
+      })
+    );
+    expect(mockInvoke).toHaveBeenCalledWith(
+      "Respond with exactly one word: OK. Do not include punctuation."
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

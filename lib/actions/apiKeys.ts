@@ -252,6 +252,72 @@ async function pingProviderKey(input: {
   }
 }
 
+function buildLocalLlmModelsUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/models`;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+async function pingLocalConnectorEndpoint(
+  storedCredential: string
+): Promise<{ isValid: boolean; error?: string }> {
+  const connector = parseLocalLlmConnectorConfig(storedCredential);
+  if (!connector) {
+    return { isValid: false, error: "Invalid local LLM connector." };
+  }
+
+  try {
+    const headers: HeadersInit = connector.apiKey
+      ? { Authorization: `Bearer ${connector.apiKey}` }
+      : {};
+    const response = await fetch(buildLocalLlmModelsUrl(connector.baseUrl), {
+      headers,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return {
+        isValid: false,
+        error: `Local LLM endpoint returned HTTP ${response.status}.`,
+      };
+    }
+    return { isValid: true };
+  } catch {
+    return {
+      isValid: false,
+      error: "Could not reach the local LLM endpoint.",
+    };
+  }
+}
+
+function shouldPingProviderKey(input: {
+  provider: ApiKeyProvider;
+  storedCredential: string;
+}): boolean {
+  if (input.provider !== "LOCAL") {
+    return true;
+  }
+
+  return !!parseLocalLlmConnectorConfig(input.storedCredential)?.apiKey;
+}
+
+async function validateProviderCredential(input: {
+  provider: ApiKeyProvider;
+  storedCredential: string;
+  model: string;
+}): Promise<{ isValid: boolean; error?: string }> {
+  if (!shouldPingProviderKey(input)) {
+    return pingLocalConnectorEndpoint(input.storedCredential);
+  }
+
+  return pingProviderKey({
+    provider: input.provider,
+    apiKey: input.storedCredential,
+    model: input.model,
+  });
+}
+
 export async function validateApiKey(
   provider: ApiKeyProvider,
   rawKey: string,
@@ -276,12 +342,11 @@ export async function validateApiKey(
   }
 
   const model = requestedModel?.trim() || defaultModelForProvider(provider);
-  const validation = await pingProviderKey({
+  const validation = await validateProviderCredential({
     provider,
-    apiKey: credential.storedCredential,
+    storedCredential: credential.storedCredential,
     model,
   });
-
   if (!validation.isValid) {
     return { error: validation.error ?? "API key validation failed." };
   }
@@ -324,10 +389,11 @@ export async function upsertApiKey(
 
   const defaultModel =
     options?.defaultModel?.trim() || defaultModelForProvider(provider);
+  const didValidateProvider = Boolean(options?.validateBeforeSave);
   if (options?.validateBeforeSave) {
-    const validation = await pingProviderKey({
+    const validation = await validateProviderCredential({
       provider,
-      apiKey: credential.storedCredential,
+      storedCredential: credential.storedCredential,
       model: defaultModel,
     });
     if (!validation.isValid) {
@@ -350,7 +416,7 @@ export async function upsertApiKey(
       keyHint,
       defaultModel,
       enabled: options?.enabled ?? true,
-      lastValidatedAt: options?.validateBeforeSave ? now : null,
+      lastValidatedAt: didValidateProvider ? now : null,
       validationError: null,
     },
     update: {
@@ -358,7 +424,7 @@ export async function upsertApiKey(
       keyHint,
       defaultModel,
       enabled: options?.enabled ?? true,
-      lastValidatedAt: options?.validateBeforeSave ? now : undefined,
+      lastValidatedAt: didValidateProvider ? now : undefined,
       validationError: null,
     },
   });

@@ -3,8 +3,10 @@ import {
   buildProjectBlobPath,
   buildProjectBlobPrefix,
   getFilenameFromProjectBlobPath,
+  isIgnoredDocumentUploadPath,
   sanitizeDocumentFilename,
   sanitizeDocumentPathSegments,
+  sanitizeDocumentUploadPath,
   sanitizeProjectId,
 } from "@/lib/blob/documents";
 
@@ -40,6 +42,27 @@ describe("blob document path helpers", () => {
     );
     expect(sanitizeDocumentPathSegments(["..", "final.pdf"])).toBeNull();
     expect(sanitizeDocumentPathSegments(["reports", "final.exe"])).toBeNull();
+  });
+
+  it("validates browser folder upload paths", () => {
+    expect(sanitizeDocumentUploadPath("Deal Room/report.pdf")).toBe(
+      "Deal Room/report.pdf"
+    );
+    expect(sanitizeDocumentUploadPath("Deal Room\\report.pdf")).toBe(
+      "Deal Room/report.pdf"
+    );
+    expect(sanitizeDocumentUploadPath("/Deal Room/report.pdf")).toBeNull();
+    expect(sanitizeDocumentUploadPath("../report.pdf")).toBeNull();
+    expect(sanitizeDocumentUploadPath("Deal Room/.DS_Store")).toBeNull();
+  });
+
+  it("identifies system files ignored during folder upload", () => {
+    expect(isIgnoredDocumentUploadPath("later/.DS_Store")).toBe(true);
+    expect(isIgnoredDocumentUploadPath("later/._report.pdf")).toBe(true);
+    expect(isIgnoredDocumentUploadPath("later/Thumbs.db")).toBe(true);
+    expect(isIgnoredDocumentUploadPath("later/Desktop.ini")).toBe(true);
+    expect(isIgnoredDocumentUploadPath("later/~$draft.docx")).toBe(true);
+    expect(isIgnoredDocumentUploadPath("later/report.pdf")).toBe(false);
   });
 
   it("builds project-specific blob prefix and path using firmId", () => {

@@ -10,6 +10,7 @@ import { FirmModel } from "@/lib/models/FirmModel";
 import { BillingModel } from "@/lib/models/BillingModel";
 import { AuditLogModel } from "@/lib/models/AuditLogModel";
 import { diligenceWorkflow } from "@/lib/diligence/diligence-workflow";
+import type { ModelRoute } from "@/lib/diligence/model-router";
 import { buildProjectBlobPrefix } from "@/lib/blob/documents";
 import { db } from "@/lib/db";
 import {
@@ -17,6 +18,61 @@ import {
   type ApiKeyProvider,
   DiligenceJobStatus,
 } from "@/lib/generated/prisma/client";
+
+const LOCAL_WORKFLOW_HEALTH_PATH = "/.well-known/workflow/v1/flow?__health";
+
+function getNestedErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+  const errorLike = error as { code?: unknown; cause?: unknown };
+  if (typeof errorLike.code === "string") {
+    return errorLike.code;
+  }
+  return getNestedErrorCode(errorLike.cause);
+}
+
+function describeLocalWorkflowConnectionError(
+  error: unknown,
+  baseUrl: string
+): string {
+  const code = getNestedErrorCode(error);
+  if (code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") {
+    return `Local Workflow cannot verify the HTTPS certificate at ${baseUrl}. Run mkcert -install, then restart with yarn dev, or switch to yarn dev:http.`;
+  }
+  if (code === "ERR_SSL_WRONG_VERSION_NUMBER") {
+    return `Local Workflow is using HTTPS for an HTTP dev server at ${baseUrl}. Restart with yarn dev:http, or set WORKFLOW_LOCAL_BASE_URL=http://localhost:3000.`;
+  }
+
+  const message = error instanceof Error ? error.message : "fetch failed";
+  return `Local Workflow cannot reach ${baseUrl}: ${message}. Check WORKFLOW_LOCAL_BASE_URL and restart the dev server.`;
+}
+
+async function getLocalWorkflowReadinessError(): Promise<string | null> {
+  if (process.env.VERCEL_DEPLOYMENT_ID || process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  const baseUrl = process.env.WORKFLOW_LOCAL_BASE_URL?.replace(/\/$/, "");
+  if (!baseUrl) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}${LOCAL_WORKFLOW_HEALTH_PATH}`, {
+      method: "POST",
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (response.ok) {
+      return null;
+    }
+
+    return `Local Workflow health check at ${baseUrl} returned HTTP ${response.status}. Check WORKFLOW_LOCAL_BASE_URL and restart the dev server.`;
+  } catch (error) {
+    return describeLocalWorkflowConnectionError(error, baseUrl);
+  }
+}
 
 export async function createProject(formData: FormData): Promise<void> {
   const session = await auth();
@@ -124,16 +180,37 @@ export async function startProjectDueDiligence(
 
   const enabledKeys = await UserApiKeyModel.listEnabledForUser(session.user.id);
   if (enabledKeys.length === 0) {
+    await ProjectModel.updateStatusForUser({
+      projectId,
+      userId: session.user.id,
+      status: "draft",
+    });
+    revalidatePath(`/project/${projectId}`);
+    revalidatePath("/dashboard");
     return { error: "No enabled provider API keys are configured." };
   }
 
   const modelRouter = new ModelRouter();
-  const modelRoute = modelRouter.route({
-    selectedProvider: options?.selectedProvider ?? null,
-    selectedModel: options?.selectedModel ?? null,
-    fallbackProviders: options?.fallbackProviders ?? null,
-    keys: enabledKeys,
-  });
+  let modelRoute: ModelRoute;
+  try {
+    modelRoute = modelRouter.route({
+      selectedProvider: options?.selectedProvider ?? null,
+      selectedModel: options?.selectedModel ?? null,
+      fallbackProviders: options?.fallbackProviders ?? null,
+      keys: enabledKeys,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to route model provider.";
+    await ProjectModel.updateStatusForUser({
+      projectId,
+      userId: session.user.id,
+      status: "draft",
+    });
+    revalidatePath(`/project/${projectId}`);
+    revalidatePath("/dashboard");
+    return { error: message };
+  }
 
   const existingJob = await DiligenceJobModel.findLatestForProject({
     projectId,
@@ -141,6 +218,17 @@ export async function startProjectDueDiligence(
   });
 
   const priority = options?.priority ?? 0;
+  const workflowReadinessError = await getLocalWorkflowReadinessError();
+  if (workflowReadinessError) {
+    await ProjectModel.updateStatusForUser({
+      projectId,
+      userId: session.user.id,
+      status: "draft",
+    });
+    revalidatePath(`/project/${projectId}`);
+    revalidatePath("/dashboard");
+    return { error: workflowReadinessError };
+  }
 
   let jobId = existingJob?.id;
   if (
@@ -164,6 +252,19 @@ export async function startProjectDueDiligence(
       priority,
     });
     jobId = createdJob.id;
+  } else if (
+    existingJob.status === DiligenceJobStatus.FAILED ||
+    existingJob.status === DiligenceJobStatus.WAITING_INPUT
+  ) {
+    await db.diligenceJob.updateMany({
+      where: { id: existingJob.id, userId: session.user.id },
+      data: {
+        status: DiligenceJobStatus.QUEUED,
+        errorMessage: null,
+        completedAt: null,
+        lastHeartbeatAt: null,
+      },
+    });
   }
 
   if (!jobId) {
@@ -182,11 +283,30 @@ export async function startProjectDueDiligence(
     ]);
     runId = run.runId;
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to start due diligence.";
+    const now = new Date();
+    await Promise.all([
+      db.diligenceJob.updateMany({
+        where: { id: jobId, userId: session.user.id },
+        data: {
+          status: DiligenceJobStatus.FAILED,
+          errorMessage: message,
+          completedAt: now,
+          lastHeartbeatAt: now,
+        },
+      }),
+      ProjectModel.updateStatusForUser({
+        projectId,
+        userId: session.user.id,
+        status: "draft",
+      }),
+    ]);
+    revalidatePath(`/project/${projectId}`);
+    revalidatePath("/dashboard");
+
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to start due diligence.",
+      error: message,
       jobId,
     };
   }
@@ -358,7 +478,38 @@ export async function retryProjectDueDiligence(
     return { error: "Diligence job not found." };
   }
 
+  const projectUpdated = await ProjectModel.updateStatusForUser({
+    projectId: job.projectId,
+    userId: session.user.id,
+    status: "inprogress",
+  });
+  if (!projectUpdated) {
+    return { error: "Project not found." };
+  }
+
   try {
+    const workflowReadinessError = await getLocalWorkflowReadinessError();
+    if (workflowReadinessError) {
+      await ProjectModel.updateStatusForUser({
+        projectId: job.projectId,
+        userId: session.user.id,
+        status: "draft",
+      });
+      revalidatePath(`/project/${job.projectId}`);
+      revalidatePath("/dashboard");
+      return { error: workflowReadinessError };
+    }
+
+    await db.diligenceJob.updateMany({
+      where: { id: jobId, userId: session.user.id },
+      data: {
+        status: DiligenceJobStatus.QUEUED,
+        errorMessage: null,
+        completedAt: null,
+        lastHeartbeatAt: null,
+      },
+    });
+
     const run = await start(diligenceWorkflow, [
       { jobId, userId: session.user.id, priority: job.priority },
     ]);
@@ -368,11 +519,30 @@ export async function retryProjectDueDiligence(
 
     return { runId: run.runId };
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to retry due diligence.";
+    const now = new Date();
+    await Promise.all([
+      db.diligenceJob.updateMany({
+        where: { id: jobId, userId: session.user.id },
+        data: {
+          status: DiligenceJobStatus.FAILED,
+          errorMessage: message,
+          completedAt: now,
+          lastHeartbeatAt: now,
+        },
+      }),
+      ProjectModel.updateStatusForUser({
+        projectId: job.projectId,
+        userId: session.user.id,
+        status: "draft",
+      }),
+    ]);
+    revalidatePath(`/project/${job.projectId}`);
+    revalidatePath("/dashboard");
+
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to retry due diligence.",
+      error: message,
     };
   }
 }

@@ -28,7 +28,7 @@ export default async function ProjectInspectPage({
   }
 
   const { id } = await params;
-  const project = await ProjectModel.findByIdForUser({
+  let project = await ProjectModel.findByIdForUser({
     projectId: id,
     userId: session.user.id,
   });
@@ -42,6 +42,18 @@ export default async function ProjectInspectPage({
   const hasAnyApiKeys = apiKeyStatuses.some(
     (status) => status.isSet && status.enabled
   );
+  const staleWorkflowStart = await DiligenceJobModel.failStaleWorkflowStartForProject({
+    projectId: project.id,
+    userId: session.user.id,
+  });
+  if (staleWorkflowStart) {
+    project =
+      (await ProjectModel.findByIdForUser({
+        projectId: id,
+        userId: session.user.id,
+      })) ?? project;
+  }
+
   const [diligenceJob, graphGoal, diligenceSnapshots] = await Promise.all([
     DiligenceJobModel.findLatestWithStagesForProject({
       projectId: project.id,

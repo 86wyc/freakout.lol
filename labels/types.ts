@@ -125,6 +125,7 @@ export type AppLabels = {
       deleteProjectErrorToast: string;
       documentsHeading: string;
       fileInputLabel: string;
+      folderInputLabel: string;
       uploadInProgress: string;
       dropzoneTitle: string;
       dropzoneHint: string;

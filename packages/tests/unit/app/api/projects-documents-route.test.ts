@@ -111,6 +111,78 @@ describe("projects documents API route", () => {
     expect(body.document.pathname).toBe("firm-1/project-1/report.pdf");
   });
 
+  it("uploads a folder-selected document using its relative path", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    putMock.mockResolvedValue({
+      pathname: "firm-1/project-1/Deal Room/report.pdf",
+      url: "https://blob.local/private-url",
+      downloadUrl: "https://blob.local/private-url?download=1",
+    });
+
+    const route = await import("@/app/api/projects/[projectId]/documents/route");
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(["file body"], "report.pdf", { type: "application/pdf" })
+    );
+    formData.set("relativePath", "Deal Room/report.pdf");
+
+    const response = await route.POST(
+      {
+        formData: async () => formData,
+      } as unknown as Request,
+      { params: Promise.resolve({ projectId: "project-1" }) }
+    );
+
+    expect(response.status).toBe(201);
+    expect(putMock).toHaveBeenCalledWith(
+      "firm-1/project-1/Deal Room/report.pdf",
+      expect.any(File),
+      expect.objectContaining({
+        access: "private",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+      })
+    );
+    expect(projectDocumentUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          filename: "Deal Room/report.pdf",
+          pathname: "firm-1/project-1/Deal Room/report.pdf",
+        }),
+      })
+    );
+
+    const body = await response.json();
+    expect(body.document.filename).toBe("Deal Room/report.pdf");
+  });
+
+  it("skips system files from folder uploads", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+
+    const route = await import("@/app/api/projects/[projectId]/documents/route");
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(["metadata"], ".DS_Store", { type: "application/octet-stream" })
+    );
+    formData.set("relativePath", "later/.DS_Store");
+
+    const response = await route.POST(
+      {
+        formData: async () => formData,
+      } as unknown as Request,
+      { params: Promise.resolve({ projectId: "project-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ skipped: true });
+    expect(putMock).not.toHaveBeenCalled();
+    expect(projectDocumentUpsertMock).not.toHaveBeenCalled();
+  });
+
   it("uploads a supported PowerPoint document", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
     putMock.mockResolvedValue({

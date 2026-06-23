@@ -458,4 +458,43 @@ describe("ApiKeyCard", () => {
       );
     });
   });
+
+  it("validates a local connector without an optional token", async () => {
+    mockValidateApiKey.mockResolvedValue({ validatedAt: "2024-01-01" });
+    const localInitial = {
+      ...defaultInitial,
+      provider: "LOCAL" as const,
+      defaultModel: "llama3.1:8b",
+    };
+
+    render(
+      <ApiKeyCard
+        initial={localInitial}
+        labels={labels}
+        onUpdate={mockOnUpdate}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Endpoint URL"), {
+      target: { value: "0.0.0.0:11434" },
+    });
+
+    const testButton = screen.getByRole("button", {
+      name: /test connection/i,
+    });
+    expect(testButton).toBeEnabled();
+
+    fireEvent.click(testButton);
+
+    await waitFor(() => {
+      expect(mockValidateApiKey).toHaveBeenCalledWith(
+        "LOCAL",
+        JSON.stringify({
+          baseUrl: "http://localhost:11434/v1",
+          apiKey: null,
+        }),
+        "llama3.1:8b"
+      );
+    });
+  });
 });

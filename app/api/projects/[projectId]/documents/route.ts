@@ -12,7 +12,8 @@ import {
   buildProjectBlobPath,
   buildProjectBlobPrefix,
   getFilenameFromProjectBlobPath,
-  sanitizeDocumentFilename,
+  isIgnoredDocumentUploadPath,
+  sanitizeDocumentUploadPath,
   sanitizeProjectId,
 } from "@/lib/blob/documents";
 
@@ -99,12 +100,18 @@ export async function POST(
   const blobScopeId = projectRecord?.firmId ?? userId; // fallback for legacy
 
   let file: File | null = null;
+  let requestedDocumentPath = "";
   try {
     const formData = await request.formData();
     const fileEntry = formData.get("file");
     if (isFileLike(fileEntry)) {
       file = fileEntry;
     }
+    const relativePathEntry = formData.get("relativePath");
+    requestedDocumentPath =
+      typeof relativePathEntry === "string" && relativePathEntry.trim()
+        ? relativePathEntry
+        : file?.name ?? "";
   } catch {
     return Response.json({ error: "Invalid form data." }, { status: 400 });
   }
@@ -118,16 +125,19 @@ export async function POST(
       { status: 413 }
     );
   }
+  if (isIgnoredDocumentUploadPath(requestedDocumentPath)) {
+    return Response.json({ skipped: true }, { status: 200 });
+  }
 
-  const sanitizedFilename = sanitizeDocumentFilename(file.name);
-  if (!sanitizedFilename) {
+  const sanitizedDocumentPath = sanitizeDocumentUploadPath(requestedDocumentPath);
+  if (!sanitizedDocumentPath) {
     return Response.json({ error: INVALID_DOCUMENT_ERROR }, { status: 400 });
   }
 
   const pathname = buildProjectBlobPath(
     blobScopeId,
     sanitizedProjectId,
-    sanitizedFilename
+    sanitizedDocumentPath
   );
   if (!pathname) {
     return Response.json({ error: "Invalid storage path." }, { status: 400 });
@@ -177,7 +187,7 @@ export async function POST(
     const projectDocument = await ProjectDocumentModel.upsertFromBlob({
       projectId: sanitizedProjectId,
       userId,
-      filename: sanitizedFilename,
+      filename: sanitizedDocumentPath,
       pathname: blob.pathname,
       sizeBytes: file.size,
       contentType: file.type || null,
@@ -194,7 +204,7 @@ export async function POST(
         targetType: "ProjectDocument",
         targetId: projectDocument.id,
         projectId: sanitizedProjectId,
-        metadata: { filename: sanitizedFilename, sizeBytes: file.size, requestId },
+        metadata: { filename: sanitizedDocumentPath, sizeBytes: file.size, requestId },
       }),
     ]).catch((err) => {
       logger.warn("upload.post_write_failed", { requestId, userId, projectId: sanitizedProjectId }, err);
@@ -204,7 +214,7 @@ export async function POST(
       requestId,
       userId,
       projectId: sanitizedProjectId,
-      filename: sanitizedFilename,
+      filename: sanitizedDocumentPath,
       sizeBytes: file.size,
     });
 
@@ -212,7 +222,7 @@ export async function POST(
       {
         document: {
           id: projectDocument.id,
-          filename: sanitizedFilename,
+          filename: sanitizedDocumentPath,
           pathname: blob.pathname,
           url: blob.url,
           downloadUrl: blob.downloadUrl,
@@ -231,7 +241,7 @@ export async function POST(
       requestId,
       userId,
       projectId: sanitizedProjectId,
-      filename: sanitizedFilename ?? "unknown",
+      filename: sanitizedDocumentPath ?? "unknown",
     }, err);
     return Response.json({ error: "Failed to upload document." }, { status: 500 });
   }

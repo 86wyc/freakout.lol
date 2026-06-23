@@ -4,6 +4,11 @@ const mockDiligenceJob = {
   create: vi.fn(),
   findFirst: vi.fn(),
   findMany: vi.fn(),
+  updateMany: vi.fn(),
+};
+
+const mockProject = {
+  updateMany: vi.fn(),
 };
 
 const mockDiligenceStageRun = {
@@ -39,6 +44,8 @@ vi.mock("@/lib/db", () => ({
     diligenceEntity: mockDiligenceEntity,
     diligenceContradiction: mockDiligenceContradiction,
     diligenceArtifact: mockDiligenceArtifact,
+    project: mockProject,
+    $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
   },
 }));
 
@@ -55,6 +62,10 @@ vi.mock("@/lib/generated/prisma/client", () => ({
   DiligenceStageName: {
     DOCUMENT_EXTRACTION: "DOCUMENT_EXTRACTION",
     ENTITY_EXTRACTION: "ENTITY_EXTRACTION",
+  },
+  ProjectStatus: {
+    DRAFT: "DRAFT",
+    IN_PROGRESS: "IN_PROGRESS",
   },
 }));
 
@@ -174,6 +185,72 @@ describe("DiligenceJobModel", () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("failStaleWorkflowStartForProject", () => {
+    it("marks stale queued jobs failed and releases the project", async () => {
+      mockDiligenceJob.findFirst.mockResolvedValue({ id: "job-stale" });
+      mockDiligenceJob.updateMany.mockResolvedValue({ count: 1 });
+      mockProject.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await DiligenceJobModel.failStaleWorkflowStartForProject({
+        projectId: "project-1",
+        userId: "user-1",
+      });
+
+      expect(result).toEqual({
+        jobId: "job-stale",
+        errorMessage: expect.stringContaining("workflow did not start"),
+      });
+      expect(mockDiligenceJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            projectId: "project-1",
+            userId: "user-1",
+            status: "QUEUED",
+            workflowRunId: null,
+            currentStage: null,
+            attemptCount: 0,
+            updatedAt: { lt: expect.any(Date) },
+          }),
+        })
+      );
+      expect(mockDiligenceJob.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: "job-stale" }),
+          data: expect.objectContaining({
+            status: "FAILED",
+            errorMessage: expect.stringContaining("workflow did not start"),
+          }),
+        })
+      );
+      expect(mockProject.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "project-1",
+          status: "IN_PROGRESS",
+          diligenceJobs: {
+            some: {
+              id: "job-stale",
+              userId: "user-1",
+            },
+          },
+        },
+        data: { status: "DRAFT" },
+      });
+    });
+
+    it("does nothing when no stale queued job exists", async () => {
+      mockDiligenceJob.findFirst.mockResolvedValue(null);
+
+      const result = await DiligenceJobModel.failStaleWorkflowStartForProject({
+        projectId: "project-1",
+        userId: "user-1",
+      });
+
+      expect(result).toBeNull();
+      expect(mockDiligenceJob.updateMany).not.toHaveBeenCalled();
+      expect(mockProject.updateMany).not.toHaveBeenCalled();
     });
   });
 

@@ -60,7 +60,18 @@ yarn prisma generate
 yarn dev
 ```
 
-For local HTTPS (using certs in `certificates/`):
+`yarn dev` runs local HTTPS using the `mkcert` certificates in `certificates/`.
+The dev scripts set `WORKFLOW_LOCAL_BASE_URL` explicitly so Workflow callbacks
+match the server protocol. If the certificate root is not installed in your OS
+trust store, run `mkcert -install` or use the HTTP command below.
+
+For local HTTP:
+
+```bash
+yarn dev:http
+```
+
+For local HTTPS explicitly:
 
 ```bash
 yarn dev:https
@@ -76,6 +87,8 @@ Configure these in `.env` / `.env.local`:
 | `DIRECT_URL`                  | Direct Postgres connection string (migrations)     |
 | `AUTH_SECRET`                 | Auth.js secret                                     |
 | `AUTH_URL`                    | App URL (e.g. `https://localhost:3000`)            |
+| `NEXT_PUBLIC_APP_URL`         | Public app origin used by local callbacks          |
+| `WORKFLOW_LOCAL_BASE_URL`     | Optional local Workflow callback origin override   |
 | `AUTH_LINKEDIN_ID`            | LinkedIn OAuth app client ID                       |
 | `AUTH_LINKEDIN_SECRET`        | LinkedIn OAuth app client secret                   |
 | `NEXT_PUBLIC_SENTRY_DSN`      | Sentry DSN for error monitoring                    |

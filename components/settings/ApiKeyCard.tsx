@@ -210,6 +210,10 @@ export function ApiKeyCard({
   }
 
   async function handleTestKey() {
+    if (!hasCredentialInput()) {
+      return;
+    }
+
     const credentialInput = buildCredentialInput();
     if (!credentialInput) {
       if (isLocal) {

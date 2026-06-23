@@ -175,6 +175,7 @@ vi.mock("@/lib/models/ProjectModel", () => ({
 }));
 
 const mockDiligenceJobModel = {
+  failStaleWorkflowStartForProject: vi.fn().mockResolvedValue(null),
   findLatestWithStagesForProject: vi.fn().mockResolvedValue(null),
   getCompletedSnapshotsForProject: vi.fn().mockResolvedValue([]),
 };
@@ -263,8 +264,9 @@ vi.mock("@/labels", () => ({
           deleteProjectErrorToast: "Failed to delete project.",
           documentsHeading: "Files",
           fileInputLabel: "Upload files",
+          folderInputLabel: "Upload folder",
           uploadInProgress: "Uploading...",
-          dropzoneTitle: "Drag and drop files to upload",
+          dropzoneTitle: "Drag and drop files or folders to upload",
           dropzoneHint: "Files upload automatically after drop.",
           uploadQueueHeading: "Upload progress",
           uploadStatusQueued: "Queued",

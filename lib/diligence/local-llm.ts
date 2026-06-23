@@ -12,12 +12,23 @@ export function normalizeLocalLlmBaseUrl(value: string): string | null {
   }
 
   try {
-    const url = new URL(trimmed);
+    const endpoint = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)
+      ? trimmed
+      : `http://${trimmed}`;
+    const url = new URL(endpoint);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return null;
     }
     if (url.username || url.password) {
       return null;
+    }
+
+    if (
+      url.hostname === "0.0.0.0" ||
+      url.hostname === "::" ||
+      url.hostname === "[::]"
+    ) {
+      url.hostname = "localhost";
     }
 
     url.hash = "";

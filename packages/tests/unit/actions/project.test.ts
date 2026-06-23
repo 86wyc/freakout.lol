@@ -1,4 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const originalWorkflowLocalBaseUrl = process.env.WORKFLOW_LOCAL_BASE_URL;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  if (originalWorkflowLocalBaseUrl === undefined) {
+    delete process.env.WORKFLOW_LOCAL_BASE_URL;
+  } else {
+    process.env.WORKFLOW_LOCAL_BASE_URL = originalWorkflowLocalBaseUrl;
+  }
+});
 
 const mockAuth = vi.fn();
 vi.mock("@/lib/auth", () => ({
@@ -236,6 +247,157 @@ describe("startProjectDueDiligence", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/project/project-1");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard");
   });
+
+  it("reverts project status when no enabled provider keys exist", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
+    mockListEnabledForUser.mockResolvedValue([]);
+
+    const result = await startProjectDueDiligence("project-1");
+
+    expect(result).toEqual({
+      error: "No enabled provider API keys are configured.",
+    });
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenNthCalledWith(1, {
+      projectId: "project-1",
+      userId: "user-1",
+      status: "inprogress",
+    });
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenNthCalledWith(2, {
+      projectId: "project-1",
+      userId: "user-1",
+      status: "draft",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/project/project-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("resets an existing failed job before starting the workflow", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
+    mockListEnabledForUser.mockResolvedValue([
+      {
+        id: "key-1",
+        provider: "OPENAI",
+        defaultModel: "gpt-4o-mini",
+        enabled: true,
+      },
+    ]);
+    mockRoute.mockReturnValue({
+      userApiKeyId: "key-1",
+      selectedProvider: "OPENAI",
+      selectedModel: "gpt-4o-mini",
+      fallbackProviders: [],
+    });
+    mockFindLatestForProject.mockResolvedValue({
+      id: "job-1",
+      status: "FAILED",
+    });
+    mockStart.mockResolvedValue({ runId: "run-1" });
+
+    const result = await startProjectDueDiligence("project-1");
+
+    expect(result).toEqual({ jobId: "job-1", runId: "run-1" });
+    expect(mockDbDiligenceJobUpdateMany).toHaveBeenCalledWith({
+      where: { id: "job-1", userId: "user-1" },
+      data: {
+        status: "QUEUED",
+        errorMessage: null,
+        completedAt: null,
+        lastHeartbeatAt: null,
+      },
+    });
+    expect(mockStart).toHaveBeenCalledWith(expect.any(Function), [
+      { jobId: "job-1", userId: "user-1", priority: 0 },
+    ]);
+  });
+
+  it("returns an actionable error when local workflow cannot verify the HTTPS certificate", async () => {
+    process.env.WORKFLOW_LOCAL_BASE_URL = "https://localhost:3000";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(
+        Object.assign(new TypeError("fetch failed"), {
+          cause: Object.assign(new Error("unable to verify certificate"), {
+            code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+          }),
+        })
+      )
+    );
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
+    mockListEnabledForUser.mockResolvedValue([
+      {
+        id: "key-1",
+        provider: "OPENAI",
+        defaultModel: "gpt-4o-mini",
+        enabled: true,
+      },
+    ]);
+    mockRoute.mockReturnValue({
+      userApiKeyId: "key-1",
+      selectedProvider: "OPENAI",
+      selectedModel: "gpt-4o-mini",
+      fallbackProviders: [],
+    });
+    mockFindLatestForProject.mockResolvedValue(null);
+
+    const result = await startProjectDueDiligence("project-1");
+
+    expect(result.error).toContain("mkcert -install");
+    expect(result.error).toContain("yarn dev:http");
+    expect(mockCreateDiligenceJob).not.toHaveBeenCalled();
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenLastCalledWith({
+      projectId: "project-1",
+      userId: "user-1",
+      status: "draft",
+    });
+  });
+
+  it("marks the job failed and releases the project when workflow start fails", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
+    mockListEnabledForUser.mockResolvedValue([
+      {
+        id: "key-1",
+        provider: "OPENAI",
+        defaultModel: "gpt-4o-mini",
+        enabled: true,
+      },
+    ]);
+    mockRoute.mockReturnValue({
+      userApiKeyId: "key-1",
+      selectedProvider: "OPENAI",
+      selectedModel: "gpt-4o-mini",
+      fallbackProviders: [],
+    });
+    mockFindLatestForProject.mockResolvedValue(null);
+    mockCountForProject.mockResolvedValue(1);
+    mockMarkAllQueuedForProject.mockResolvedValue({ count: 1 });
+    mockCreateDiligenceJob.mockResolvedValue({ id: "job-1" });
+    mockStart.mockRejectedValue(new Error("queue down"));
+
+    const result = await startProjectDueDiligence("project-1");
+
+    expect(result).toEqual({ error: "queue down", jobId: "job-1" });
+    expect(mockDbDiligenceJobUpdateMany).toHaveBeenCalledWith({
+      where: { id: "job-1", userId: "user-1" },
+      data: expect.objectContaining({
+        status: "FAILED",
+        errorMessage: "queue down",
+        completedAt: expect.any(Date),
+        lastHeartbeatAt: expect.any(Date),
+      }),
+    });
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenLastCalledWith({
+      projectId: "project-1",
+      userId: "user-1",
+      status: "draft",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/project/project-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
 });
 
 describe("retryProjectDueDiligence", () => {
@@ -245,6 +407,7 @@ describe("retryProjectDueDiligence", () => {
 
   it("re-starts the workflow for an existing job", async () => {
     mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
     mockFindDiligenceJobByIdForUser.mockResolvedValue({
       projectId: "project-1",
       priority: 2,
@@ -254,10 +417,112 @@ describe("retryProjectDueDiligence", () => {
     const result = await retryProjectDueDiligence("job-1");
 
     expect(result).toEqual({ runId: "run-2" });
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenCalledWith({
+      projectId: "project-1",
+      userId: "user-1",
+      status: "inprogress",
+    });
+    expect(mockDbDiligenceJobUpdateMany).toHaveBeenCalledWith({
+      where: { id: "job-1", userId: "user-1" },
+      data: {
+        status: "QUEUED",
+        errorMessage: null,
+        completedAt: null,
+        lastHeartbeatAt: null,
+      },
+    });
     expect(mockStart).toHaveBeenCalledWith(expect.any(Function), [
       { jobId: "job-1", userId: "user-1", priority: 2 },
     ]);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/project/project-1");
+  });
+
+  it("marks the job failed and releases the project when retry start fails", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
+    mockFindDiligenceJobByIdForUser.mockResolvedValue({
+      projectId: "project-1",
+      priority: 2,
+    });
+    mockStart.mockRejectedValue(new Error("queue down"));
+
+    const result = await retryProjectDueDiligence("job-1");
+
+    expect(result).toEqual({ error: "queue down" });
+    expect(mockDbDiligenceJobUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "job-1", userId: "user-1" },
+      data: {
+        status: "QUEUED",
+        errorMessage: null,
+        completedAt: null,
+        lastHeartbeatAt: null,
+      },
+    });
+    expect(mockDbDiligenceJobUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: "job-1", userId: "user-1" },
+      data: expect.objectContaining({
+        status: "FAILED",
+        errorMessage: "queue down",
+        completedAt: expect.any(Date),
+        lastHeartbeatAt: expect.any(Date),
+      }),
+    });
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenLastCalledWith({
+      projectId: "project-1",
+      userId: "user-1",
+      status: "draft",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/project/project-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("returns an actionable error when local workflow uses HTTPS against HTTP on retry", async () => {
+    process.env.WORKFLOW_LOCAL_BASE_URL = "https://localhost:3000";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(
+        Object.assign(new TypeError("fetch failed"), {
+          cause: Object.assign(new Error("wrong version number"), {
+            code: "ERR_SSL_WRONG_VERSION_NUMBER",
+          }),
+        })
+      )
+    );
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(true);
+    mockFindDiligenceJobByIdForUser.mockResolvedValue({
+      projectId: "project-1",
+      priority: 2,
+    });
+
+    const result = await retryProjectDueDiligence("job-1");
+
+    expect(result.error).toContain("yarn dev:http");
+    expect(result.error).toContain("WORKFLOW_LOCAL_BASE_URL=http://localhost:3000");
+    expect(mockDbDiligenceJobUpdateMany).not.toHaveBeenCalled();
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(mockProjectModel.updateStatusForUser).toHaveBeenLastCalledWith({
+      projectId: "project-1",
+      userId: "user-1",
+      status: "draft",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/project/project-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("returns an error when the retry project cannot be updated", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+    mockProjectModel.updateStatusForUser.mockResolvedValue(false);
+    mockFindDiligenceJobByIdForUser.mockResolvedValue({
+      projectId: "project-1",
+      priority: 2,
+    });
+
+    const result = await retryProjectDueDiligence("job-1");
+
+    expect(result).toEqual({ error: "Project not found." });
+    expect(mockDbDiligenceJobUpdateMany).not.toHaveBeenCalled();
+    expect(mockStart).not.toHaveBeenCalled();
   });
 
   it("returns an error when job is not found", async () => {

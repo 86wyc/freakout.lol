@@ -13,6 +13,15 @@ describe("local LLM connector helpers", () => {
     );
   });
 
+  it("normalizes bare Ollama listener addresses to client URLs", () => {
+    expect(normalizeLocalLlmBaseUrl("0.0.0.0:11434")).toBe(
+      "http://localhost:11434/v1"
+    );
+    expect(normalizeLocalLlmBaseUrl("localhost:11434")).toBe(
+      "http://localhost:11434/v1"
+    );
+  });
+
   it("serializes and parses connector settings", () => {
     const serialized = serializeLocalLlmConnectorConfig({
       baseUrl: "http://localhost:11434",

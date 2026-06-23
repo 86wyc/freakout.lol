@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuBot, LuBuilding2, LuCirclePlay, LuFactory, LuFileText, LuGitBranch, LuHandshake, LuHistory, LuLock, LuPackage, LuRefreshCw, LuTrendingUp, LuUpload, LuUser, LuX } from "react-icons/lu";
+import { LuBot, LuBuilding2, LuCirclePlay, LuFactory, LuFileText, LuFolderUp, LuGitBranch, LuHandshake, LuHistory, LuLock, LuPackage, LuRefreshCw, LuTrendingUp, LuUpload, LuUser, LuX } from "react-icons/lu";
 import {
   startProjectDueDiligence,
   retryProjectDueDiligence,
@@ -20,7 +20,10 @@ import type {
 } from "@/lib/generated/prisma/client";
 import type { ProjectStatus } from "@/lib/models/ProjectModel";
 import type { ApiKeyStatus } from "@/lib/actions/apiKeys";
-import { ALLOWED_DOCUMENT_ACCEPT } from "@/lib/blob/documents";
+import {
+  ALLOWED_DOCUMENT_ACCEPT,
+  isIgnoredDocumentUploadPath,
+} from "@/lib/blob/documents";
 
 type ProjectInspectDocument = {
   id: string;
@@ -81,6 +84,7 @@ type DiligenceSnapshotSummary = {
 type ProjectDocumentsPanelLabels = {
   documentsHeading: string;
   fileInputLabel: string;
+  folderInputLabel: string;
   uploadInProgress: string;
   dropzoneTitle: string;
   dropzoneHint: string;
@@ -173,6 +177,118 @@ type UploadItem = {
   status: UploadItemStatus;
   error?: string;
 };
+
+type UploadFile = {
+  file: File;
+  relativePath: string;
+};
+
+type BrowserFileSystemEntry = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  fullPath: string;
+};
+
+type BrowserFileSystemFileEntry = BrowserFileSystemEntry & {
+  file(
+    successCallback: (file: File) => void,
+    errorCallback?: (error: DOMException) => void
+  ): void;
+};
+
+type BrowserFileSystemDirectoryEntry = BrowserFileSystemEntry & {
+  createReader(): {
+    readEntries(
+      successCallback: (entries: BrowserFileSystemEntry[]) => void,
+      errorCallback?: (error: DOMException) => void
+    ): void;
+  };
+};
+
+function getUploadRelativePath(file: File): string {
+  return file.webkitRelativePath || file.name;
+}
+
+function toUploadFiles(files: File[]): UploadFile[] {
+  return files
+    .map((file) => ({
+      file,
+      relativePath: getUploadRelativePath(file),
+    }))
+    .filter((uploadFile) => !isIgnoredDocumentUploadPath(uploadFile.relativePath));
+}
+
+function getDataTransferEntry(item: DataTransferItem): BrowserFileSystemEntry | null {
+  const entryItem = item as DataTransferItem & {
+    webkitGetAsEntry?: () => BrowserFileSystemEntry | null;
+  };
+  return entryItem.webkitGetAsEntry?.() ?? null;
+}
+
+function readFileEntry(entry: BrowserFileSystemFileEntry): Promise<UploadFile> {
+  return new Promise((resolve, reject) => {
+    entry.file(
+      (file) =>
+        resolve({
+          file,
+          relativePath: entry.fullPath.replace(/^\/+/, "") || file.name,
+        }),
+      reject
+    );
+  });
+}
+
+async function readDirectoryEntries(
+  entry: BrowserFileSystemDirectoryEntry
+): Promise<BrowserFileSystemEntry[]> {
+  const reader = entry.createReader();
+  const entries: BrowserFileSystemEntry[] = [];
+
+  while (true) {
+    const batch = await new Promise<BrowserFileSystemEntry[]>((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+    if (batch.length === 0) {
+      return entries;
+    }
+    entries.push(...batch);
+  }
+}
+
+async function collectUploadFilesFromEntry(
+  entry: BrowserFileSystemEntry
+): Promise<UploadFile[]> {
+  if (entry.isFile) {
+    return [await readFileEntry(entry as BrowserFileSystemFileEntry)];
+  }
+  if (!entry.isDirectory) {
+    return [];
+  }
+
+  const childEntries = await readDirectoryEntries(
+    entry as BrowserFileSystemDirectoryEntry
+  );
+  const childFiles = await Promise.all(childEntries.map(collectUploadFilesFromEntry));
+  return childFiles.flat();
+}
+
+async function getDroppedUploadFiles(
+  dataTransfer: DataTransfer
+): Promise<UploadFile[]> {
+  const entries = Array.from(dataTransfer.items)
+    .map(getDataTransferEntry)
+    .filter((entry): entry is BrowserFileSystemEntry => entry !== null);
+
+  if (entries.length === 0) {
+    return toUploadFiles(Array.from(dataTransfer.files));
+  }
+
+  const files = await Promise.all(entries.map(collectUploadFilesFromEntry));
+  return files
+    .flat()
+    .filter((uploadFile) => !isIgnoredDocumentUploadPath(uploadFile.relativePath));
+}
 
 function buildDocumentReadUrl(projectId: string, filename: string): string {
   const encodedFilename = filename
@@ -333,6 +449,7 @@ export function ProjectDocumentsPanel({
 }: ProjectDocumentsPanelProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const [documents, setDocuments] = useState<ProjectInspectDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -385,6 +502,15 @@ export function ProjectDocumentsPanel({
     [projectId]
   );
 
+  useEffect(() => {
+    const folderInput = folderInputRef.current;
+    if (!folderInput) {
+      return;
+    }
+    folderInput.setAttribute("webkitdirectory", "");
+    folderInput.setAttribute("directory", "");
+  }, []);
+
   const loadDocuments = useCallback(async (): Promise<void> => {
     setErrorMessage(null);
 
@@ -425,7 +551,7 @@ export function ProjectDocumentsPanel({
     };
   }, [isDiligenceInProgress, router]);
 
-  async function uploadFiles(files: File[]) {
+  async function uploadFiles(files: UploadFile[]) {
     if (files.length === 0) {
       return;
     }
@@ -434,13 +560,13 @@ export function ProjectDocumentsPanel({
     setErrorMessage(null);
 
     const batchPrefix = `${Date.now()}`;
-    const filesToUpload = files.map((file, index) => ({
-      key: `${batchPrefix}-${index}-${file.lastModified}-${file.size}`,
-      file,
+    const filesToUpload = files.map((uploadFile, index) => ({
+      key: `${batchPrefix}-${index}-${uploadFile.file.lastModified}-${uploadFile.file.size}`,
+      ...uploadFile,
     }));
-    const initialQueue: UploadItem[] = filesToUpload.map(({ file, key }) => ({
+    const initialQueue: UploadItem[] = filesToUpload.map(({ file, key, relativePath }) => ({
       key,
-      filename: file.name,
+      filename: relativePath,
       size: file.size,
       status: "queued",
     }));
@@ -458,6 +584,7 @@ export function ProjectDocumentsPanel({
 
         const formData = new FormData();
         formData.set("file", queuedFile.file);
+        formData.set("relativePath", queuedFile.relativePath);
 
         const response = await fetch(documentsApiUrl, {
           method: "POST",
@@ -492,6 +619,9 @@ export function ProjectDocumentsPanel({
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+      if (folderInputRef.current) {
+        folderInputRef.current.value = "";
       }
 
       await loadDocuments();
@@ -642,13 +772,12 @@ export function ProjectDocumentsPanel({
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDragActive(false);
-    const droppedFiles = Array.from(event.dataTransfer.files);
-    void uploadFiles(droppedFiles);
+    void getDroppedUploadFiles(event.dataTransfer).then(uploadFiles);
   }
 
   function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     const pickedFiles = Array.from(event.target.files ?? []);
-    void uploadFiles(pickedFiles);
+    void uploadFiles(toUploadFiles(pickedFiles));
   }
 
   function handleClearUploadItem(uploadItemKey: string) {
@@ -780,12 +909,22 @@ export function ProjectDocumentsPanel({
             {labels.uploadInProgress}
           </p>
         )}
-        <label
-          htmlFor="files"
-          className="mt-4 inline-block cursor-pointer rounded-md border border-divider bg-content1 px-3 py-2 text-xs font-medium text-foreground hover:bg-content2"
-        >
-          {labels.fileInputLabel}
-        </label>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <label
+            htmlFor="files"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-divider bg-content1 px-3 py-2 text-xs font-medium text-foreground hover:bg-content2"
+          >
+            <LuUpload aria-hidden="true" className="size-3.5" />
+            {labels.fileInputLabel}
+          </label>
+          <label
+            htmlFor="folders"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-divider bg-content1 px-3 py-2 text-xs font-medium text-foreground hover:bg-content2"
+          >
+            <LuFolderUp aria-hidden="true" className="size-3.5" />
+            {labels.folderInputLabel}
+          </label>
+        </div>
         <input
           ref={fileInputRef}
           id="files"
@@ -793,6 +932,15 @@ export function ProjectDocumentsPanel({
           type="file"
           multiple
           accept={ALLOWED_DOCUMENT_ACCEPT}
+          onChange={handleInputChange}
+          className="sr-only"
+        />
+        <input
+          ref={folderInputRef}
+          id="folders"
+          name="folders"
+          type="file"
+          multiple
           onChange={handleInputChange}
           className="sr-only"
         />
