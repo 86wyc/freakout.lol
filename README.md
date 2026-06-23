@@ -65,6 +65,16 @@ The dev scripts set `WORKFLOW_LOCAL_BASE_URL` explicitly so Workflow callbacks
 match the server protocol. If the certificate root is not installed in your OS
 trust store, run `mkcert -install` or use the HTTP command below.
 
+Install the local certificate root:
+
+```bash
+mkcert -install
+```
+
+The HTTPS dev scripts also set `NODE_EXTRA_CA_CERTS` from `mkcert -CAROOT`
+so Node's server-side `fetch` trusts the local certificate during Workflow
+health checks.
+
 For local HTTP:
 
 ```bash
