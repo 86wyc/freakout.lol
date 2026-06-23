@@ -3,6 +3,49 @@ import { withWorkflow } from "workflow/next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
+const LOCAL_WORKFLOW_DEFAULT_PORT = "3000";
+
+function getLocalDevPort(): string {
+  const inlinePortArg = process.argv.find(
+    (arg) => arg.startsWith("--port=") || arg.startsWith("-p=")
+  );
+  if (inlinePortArg) {
+    return inlinePortArg.split("=")[1] || LOCAL_WORKFLOW_DEFAULT_PORT;
+  }
+
+  const portFlagIndex = process.argv.findIndex(
+    (arg) => arg === "--port" || arg === "-p"
+  );
+  if (portFlagIndex >= 0) {
+    return process.argv[portFlagIndex + 1] || LOCAL_WORKFLOW_DEFAULT_PORT;
+  }
+
+  return process.env.PORT || LOCAL_WORKFLOW_DEFAULT_PORT;
+}
+
+function configureLocalWorkflowBaseUrl(): void {
+  if (
+    !isDevelopment ||
+    process.env.VERCEL_DEPLOYMENT_ID ||
+    process.env.WORKFLOW_LOCAL_BASE_URL
+  ) {
+    return;
+  }
+
+  const lifecycle = process.env.npm_lifecycle_event;
+  const isHttpScript = lifecycle === "dev:http";
+  const isHttpsScript =
+    lifecycle === "dev" ||
+    lifecycle === "dev:https" ||
+    lifecycle === "dev:turbo" ||
+    process.argv.includes("--experimental-https");
+  const protocol = isHttpsScript && !isHttpScript ? "https" : "http";
+
+  process.env.WORKFLOW_LOCAL_BASE_URL = `${protocol}://localhost:${getLocalDevPort()}`;
+}
+
+configureLocalWorkflowBaseUrl();
+
 const contentSecurityPolicyDirectives = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,

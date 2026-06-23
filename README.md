@@ -61,9 +61,10 @@ yarn dev
 ```
 
 `yarn dev` runs local HTTPS using the `mkcert` certificates in `certificates/`.
-The dev scripts set `WORKFLOW_LOCAL_BASE_URL` explicitly so Workflow callbacks
-match the server protocol. If the certificate root is not installed in your OS
-trust store, run `mkcert -install` or use the HTTP command below.
+Next config sets `WORKFLOW_LOCAL_BASE_URL` for local development based on the
+dev script protocol, so Workflow callbacks match the running server. If the
+certificate root is not installed in your OS trust store, run `mkcert -install`
+or use the HTTP command below.
 
 Install the local certificate root:
 
@@ -71,9 +72,8 @@ Install the local certificate root:
 mkcert -install
 ```
 
-The HTTPS dev scripts also set `NODE_EXTRA_CA_CERTS` from `mkcert -CAROOT`
-so Node's server-side `fetch` trusts the local certificate during Workflow
-health checks.
+The local Workflow readiness checks read the mkcert root directly, so the dev
+scripts do not need to set `NODE_EXTRA_CA_CERTS`.
 
 For local HTTP:
 

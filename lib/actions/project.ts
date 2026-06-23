@@ -1,5 +1,12 @@
 "use server";
 
+import { existsSync, readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { rootCertificates } from "node:tls";
+import { Agent } from "undici";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { del, list } from "@vercel/blob";
@@ -20,6 +27,23 @@ import {
 } from "@/lib/generated/prisma/client";
 
 const LOCAL_WORKFLOW_HEALTH_PATH = "/.well-known/workflow/v1/flow?__health";
+const LOCAL_WORKFLOW_HEALTH_TIMEOUT_MS = 5_000;
+const LOCAL_WORKFLOW_FETCH_PATCH_KEY = "__ddQualifyLocalWorkflowFetchPatch";
+
+type FetchWithDispatcherInit = RequestInit & {
+  dispatcher?: unknown;
+};
+
+type LocalWorkflowFetchPatchState = {
+  baseOrigin: string;
+  ca: string;
+  dispatcher: Agent;
+  originalFetch: typeof fetch;
+};
+
+type LocalWorkflowFetchPatchGlobal = typeof globalThis & {
+  [LOCAL_WORKFLOW_FETCH_PATCH_KEY]?: LocalWorkflowFetchPatchState;
+};
 
 function getNestedErrorCode(error: unknown): string | null {
   if (!error || typeof error !== "object") {
@@ -48,6 +72,123 @@ function describeLocalWorkflowConnectionError(
   return `Local Workflow cannot reach ${baseUrl}: ${message}. Check WORKFLOW_LOCAL_BASE_URL and restart the dev server.`;
 }
 
+function getMkcertRootCa(): string | null {
+  const home = homedir();
+  const candidates = [
+    process.env.NODE_EXTRA_CA_CERTS,
+    home ? join(home, "Library/Application Support/mkcert/rootCA.pem") : null,
+    home ? join(home, ".local/share/mkcert/rootCA.pem") : null,
+    process.env.LOCALAPPDATA
+      ? join(process.env.LOCALAPPDATA, "mkcert", "rootCA.pem")
+      : null,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) {
+      return readFileSync(candidate, "utf8");
+    }
+  }
+
+  return null;
+}
+
+function getRequestUrl(input: Parameters<typeof fetch>[0]): URL | null {
+  try {
+    if (typeof input === "string" || input instanceof URL) {
+      return new URL(input);
+    }
+    return new URL(input.url);
+  } catch {
+    return null;
+  }
+}
+
+function installLocalWorkflowFetchTrust(baseUrl: string): void {
+  if (process.env.VERCEL_DEPLOYMENT_ID || process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const workflowUrl = new URL(baseUrl);
+  if (workflowUrl.protocol !== "https:") {
+    return;
+  }
+
+  const ca = getMkcertRootCa();
+  if (!ca) {
+    return;
+  }
+
+  const patchGlobal = globalThis as LocalWorkflowFetchPatchGlobal;
+  const existingPatch = patchGlobal[LOCAL_WORKFLOW_FETCH_PATCH_KEY];
+  if (existingPatch?.baseOrigin === workflowUrl.origin && existingPatch.ca === ca) {
+    return;
+  }
+
+  const originalFetch = existingPatch?.originalFetch ?? globalThis.fetch.bind(globalThis);
+  const dispatcher = new Agent({
+    connect: { ca: [...rootCertificates, ca] },
+  });
+
+  globalThis.fetch = ((input, init) => {
+    const requestUrl = getRequestUrl(input);
+    if (
+      requestUrl?.origin === workflowUrl.origin &&
+      requestUrl.pathname.startsWith("/.well-known/workflow/")
+    ) {
+      return originalFetch(input, {
+        ...init,
+        dispatcher,
+      } as FetchWithDispatcherInit);
+    }
+
+    return originalFetch(input, init);
+  }) as typeof fetch;
+
+  patchGlobal[LOCAL_WORKFLOW_FETCH_PATCH_KEY] = {
+    baseOrigin: workflowUrl.origin,
+    ca,
+    dispatcher,
+    originalFetch,
+  };
+}
+
+async function requestLocalWorkflowHealth(
+  baseUrl: string
+): Promise<{ ok: boolean; status: number }> {
+  const url = new URL(`${baseUrl}${LOCAL_WORKFLOW_HEALTH_PATH}`);
+  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const ca = url.protocol === "https:" ? getMkcertRootCa() : null;
+
+  return new Promise((resolve, reject) => {
+    const req = request(
+      url,
+      {
+        method: "POST",
+        timeout: LOCAL_WORKFLOW_HEALTH_TIMEOUT_MS,
+        ...(ca ? { ca: [...rootCertificates, ca] } : {}),
+      },
+      (response) => {
+        response.on("end", () => {
+          const status = response.statusCode ?? 0;
+          resolve({ ok: status >= 200 && status < 300, status });
+        });
+        response.on("error", reject);
+        response.resume();
+      }
+    );
+
+    req.on("timeout", () => {
+      req.destroy(
+        Object.assign(new Error("Local Workflow health check timed out."), {
+          code: "ETIMEDOUT",
+        })
+      );
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 async function getLocalWorkflowReadinessError(): Promise<string | null> {
   if (process.env.VERCEL_DEPLOYMENT_ID || process.env.NODE_ENV === "production") {
     return null;
@@ -59,11 +200,8 @@ async function getLocalWorkflowReadinessError(): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(`${baseUrl}${LOCAL_WORKFLOW_HEALTH_PATH}`, {
-      method: "POST",
-      cache: "no-store",
-      signal: AbortSignal.timeout(5_000),
-    });
+    installLocalWorkflowFetchTrust(baseUrl);
+    const response = await requestLocalWorkflowHealth(baseUrl);
     if (response.ok) {
       return null;
     }
